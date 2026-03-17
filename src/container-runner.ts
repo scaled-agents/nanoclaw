@@ -200,6 +200,20 @@ function buildVolumeMounts(
     readonly: false,
   });
 
+  // Per-group Freqtrade user_data (strategies, configs, downloaded data)
+  const ftUserData = path.join(
+    DATA_DIR,
+    'sessions',
+    group.folder,
+    'freqtrade-user-data',
+  );
+  fs.mkdirSync(ftUserData, { recursive: true });
+  mounts.push({
+    hostPath: ftUserData,
+    containerPath: '/workspace/group/user_data',
+    readonly: false,
+  });
+
   // Additional mounts validated against external allowlist (tamper-proof from containers)
   if (group.containerConfig?.additionalMounts) {
     const validatedMounts = validateAdditionalMounts(

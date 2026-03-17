@@ -26,7 +26,16 @@ RUN apt-get update && apt-get install -y \
     git \
     python3 \
     python3-pip \
+    python3-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+# Build TA-Lib C library from source (not in Debian bookworm repos)
+RUN cd /tmp && \
+    curl -sSL https://sourceforge.net/projects/ta-lib/files/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz/download | tar xz && \
+    cd ta-lib/ && \
+    ./configure --prefix=/usr && make && make install && \
+    cd / && rm -rf /tmp/ta-lib
 
 # Set Chromium path for agent-browser
 ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
@@ -40,7 +49,10 @@ RUN ln -s /workspace/group/.chub /home/node/.chub
 
 # Install freqtrade-mcp Python server and dependencies
 COPY freqtrade-mcp/ /app/freqtrade-mcp/
-RUN pip install --break-system-packages freqtrade-client "mcp[cli]"
+RUN pip install --break-system-packages freqtrade freqtrade-client "mcp[cli]"
+
+# Set default freqtrade binary path
+ENV FREQTRADE_PATH=/usr/local/bin/freqtrade
 
 # Create app directory
 WORKDIR /app

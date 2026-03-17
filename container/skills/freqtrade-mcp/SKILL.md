@@ -136,7 +136,13 @@ description: >
 4. `run_hyperopt` → optimize parameters
 5. `run_walk_forward` → validate robustness
 
+**File locations:**
+- Strategies: `/workspace/group/user_data/strategies/`
+- Downloaded data: `/workspace/group/user_data/data/`
+- Configs: `/workspace/group/user_data/`
+- These persist between container runs (per-group mount)
+
 **Connection errors:**
 - REST API tools need `FREQTRADE_API_URL`, `FREQTRADE_USERNAME`, `FREQTRADE_PASSWORD`
-- CLI tools need `FREQTRADE_PATH` pointing to the freqtrade binary
+- CLI tools need `FREQTRADE_PATH` (default: `/usr/local/bin/freqtrade`)
 - Doc tools need `FREQTRADE_DOCS_PATH` pointing to the freqtrade docs directory
