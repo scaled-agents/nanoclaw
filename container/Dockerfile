@@ -3,7 +3,7 @@
 
 FROM node:22-slim
 
-# Install system dependencies for Chromium
+# Install system dependencies for Chromium + Python for freqtrade-mcp
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     curl \
     git \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Chromium path for agent-browser
@@ -35,6 +37,10 @@ RUN npm install -g agent-browser @anthropic-ai/claude-code @aisuite/chub
 
 # Persist chub annotations per-group (symlink to mounted group workspace)
 RUN ln -s /workspace/group/.chub /home/node/.chub
+
+# Install freqtrade-mcp Python server and dependencies
+COPY freqtrade-mcp/ /app/freqtrade-mcp/
+RUN pip install --break-system-packages freqtrade-client "mcp[cli]"
 
 # Create app directory
 WORKDIR /app

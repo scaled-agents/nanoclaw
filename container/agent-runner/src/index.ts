@@ -407,7 +407,8 @@ async function runQuery(
         'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
-        'mcp__nanoclaw__*'
+        'mcp__nanoclaw__*',
+        'mcp__freqtrade__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -421,6 +422,18 @@ async function runQuery(
             NANOCLAW_CHAT_JID: containerInput.chatJid,
             NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
+          },
+        },
+        freqtrade: {
+          command: 'python3',
+          args: ['/app/freqtrade-mcp/__main__.py'],
+          env: {
+            FREQTRADE_API_URL: process.env.FREQTRADE_API_URL || '',
+            FREQTRADE_USERNAME: process.env.FREQTRADE_USERNAME || '',
+            FREQTRADE_PASSWORD: process.env.FREQTRADE_PASSWORD || '',
+            FREQTRADE_PATH: process.env.FREQTRADE_PATH || 'freqtrade',
+            FREQTRADE_DOCS_PATH: process.env.FREQTRADE_DOCS_PATH || '',
+            FREQTRADE_STRATEGIES_DIR: process.env.FREQTRADE_STRATEGIES_DIR || '',
           },
         },
       },

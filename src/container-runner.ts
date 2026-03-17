@@ -26,6 +26,7 @@ import {
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
+import { readEnvFile } from './env.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 
@@ -221,6 +222,17 @@ function buildContainerArgs(
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
 
+  // Forward Freqtrade MCP settings from .env to container
+  const ftKeys = [
+    'FREQTRADE_API_URL', 'FREQTRADE_USERNAME', 'FREQTRADE_PASSWORD',
+    'FREQTRADE_PATH', 'FREQTRADE_DOCS_PATH', 'FREQTRADE_STRATEGIES_DIR',
+  ];
+  const ftEnv = readEnvFile(ftKeys);
+  for (const key of ftKeys) {
+    const val = process.env[key] || ftEnv[key];
+    if (val) args.push('-e', `${key}=${val}`);
+  }
+
   // Route API traffic through the credential proxy (containers never see real secrets)
   args.push(
     '-e',
@@ -382,7 +394,11 @@ export async function runContainerAgent(
       const chunk = data.toString();
       const lines = chunk.trim().split('\n');
       for (const line of lines) {
-        if (line) logger.debug({ container: group.folder }, line);
+        if (line.includes('[FREQTRADE]')) {
+          logger.info({ container: group.folder }, line);
+        } else if (line) {
+          logger.debug({ container: group.folder }, line);
+        }
       }
       // Don't reset timeout on stderr — SDK writes debug logs continuously.
       // Timeout only resets on actual output (OUTPUT_MARKER in stdout).
