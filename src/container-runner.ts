@@ -214,6 +214,17 @@ function buildVolumeMounts(
     readonly: false,
   });
 
+  // Swarm reports (read-only, shared across groups)
+  const swarmReportDir =
+    process.env.SWARM_REPORT_DIR || path.join(DATA_DIR, 'swarm-reports');
+  if (fs.existsSync(swarmReportDir)) {
+    mounts.push({
+      hostPath: swarmReportDir,
+      containerPath: '/workspace/extra/swarm-reports',
+      readonly: true,
+    });
+  }
+
   // Additional mounts validated against external allowlist (tamper-proof from containers)
   if (group.containerConfig?.additionalMounts) {
     const validatedMounts = validateAdditionalMounts(
@@ -256,6 +267,14 @@ function buildContainerArgs(
   const tdsEnv = readEnvFile(tdsKeys);
   for (const key of tdsKeys) {
     const val = process.env[key] || tdsEnv[key];
+    if (val) args.push('-e', `${key}=${val}`);
+  }
+
+  // Forward Swarm settings from .env to container
+  const swarmKeys = ['SWARM_REPORT_DIR'];
+  const swarmEnv = readEnvFile(swarmKeys);
+  for (const key of swarmKeys) {
+    const val = process.env[key] || swarmEnv[key];
     if (val) args.push('-e', `${key}=${val}`);
   }
 
@@ -420,7 +439,7 @@ export async function runContainerAgent(
       const chunk = data.toString();
       const lines = chunk.trim().split('\n');
       for (const line of lines) {
-        if (line.includes('[FREQTRADE]') || line.includes('[TDS]')) {
+        if (line.includes('[FREQTRADE]') || line.includes('[TDS]') || line.includes('[SWARM]')) {
           logger.info({ container: group.folder }, line);
         } else if (line) {
           logger.debug({ container: group.folder }, line);

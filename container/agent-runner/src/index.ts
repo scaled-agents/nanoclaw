@@ -410,6 +410,7 @@ async function runQuery(
         'mcp__nanoclaw__*',
         'mcp__freqtrade__*',
         'mcp__tds__*',
+        'mcp__swarm__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -444,6 +445,13 @@ async function runQuery(
             TDS_URL: process.env.TDS_URL || '',
             TDS_API_KEY: process.env.TDS_API_KEY || '',
             TDS_AGENT_ID: process.env.TDS_AGENT_ID || '',
+          },
+        },
+        swarm: {
+          command: 'node',
+          args: [path.join(path.dirname(mcpServerPath), 'swarm-mcp-stdio.js')],
+          env: {
+            SWARM_REPORT_DIR: process.env.SWARM_REPORT_DIR || '/workspace/extra/swarm-reports',
           },
         },
       },

@@ -1,0 +1,46 @@
+# Freqtrade Swarm — overnight strategy research pipeline
+#
+# Run manually:
+#   docker compose run --rm swarm python -m src run \
+#     --program /app/data/research_programs/smoke_test.yaml \
+#     --report-dir /app/reports --max-candidates 2
+#
+# Run nightly (default):
+#   docker compose up swarm
+#
+# Reports are exported to ./reports/ (mount into NanoClaw via SWARM_REPORT_DIR)
+
+services:
+  swarm:
+    build:
+      context: ${SWARM_REPO_PATH:-../../freqtrade-swarm}
+      dockerfile: Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - FREQTRADE_PATH=freqtrade
+      - FREQTRADE_USER_DATA=/app/data/user_data
+      - FREQTRADE_STRATEGIES_DIR=/app/data/strategies
+      - DATABASE_URL=sqlite+aiosqlite:///./data/swarm.db
+      - ARTIFACT_STORE_PATH=/app/data/artifacts
+    volumes:
+      - swarm-data:/app/data
+      - ${SWARM_REPORT_DIR:-./reports}:/app/reports
+    command:
+      [
+        "python",
+        "-m",
+        "src",
+        "run",
+        "--program",
+        "/app/data/research_programs/nightly.yaml",
+        "--report-dir",
+        "/app/reports",
+      ]
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: "4"
+
+volumes:
+  swarm-data:
