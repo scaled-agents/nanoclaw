@@ -1,0 +1,22 @@
+{
+  "name": "@tradev/sdna",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "FreqHub — GitHub-hosted registry for StrategyDNA trading strategy genomes",
+  "bin": {
+    "sdna": "./cli/bin/sdna.js"
+  },
+  "scripts": {
+    "test": "node --test 'cli/test/*.test.js'",
+    "build": "node scripts/build.js content/ -o dist/"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "js-yaml": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
