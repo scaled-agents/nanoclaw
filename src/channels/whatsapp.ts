@@ -5,7 +5,9 @@ import path from 'path';
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  WAMessage,
   WASocket,
+  downloadMediaMessage,
   fetchLatestWaWebVersion,
   makeCacheableSignalKeyStore,
   normalizeMessageContent,
@@ -15,6 +17,7 @@ import makeWASocket, {
 import {
   ASSISTANT_HAS_OWN_NUMBER,
   ASSISTANT_NAME,
+  GROUPS_DIR,
   STORE_DIR,
 } from '../config.js';
 import { getLastGroupSync, setLastGroupSync, updateChatName } from '../db.js';
@@ -203,12 +206,38 @@ export class WhatsAppChannel implements Channel {
           // Only deliver full message for registered groups
           const groups = this.opts.registeredGroups();
           if (groups[chatJid]) {
-            const content =
+            let content =
               normalized.conversation ||
               normalized.extendedTextMessage?.text ||
               normalized.imageMessage?.caption ||
               normalized.videoMessage?.caption ||
+              normalized.documentMessage?.caption ||
               '';
+
+            // Handle document/file uploads: download and save to group workspace
+            if (normalized.documentMessage) {
+              try {
+                const doc = normalized.documentMessage;
+                const fileName = doc.fileName || 'attachment';
+                const groupFolder = groups[chatJid].folder;
+                const uploadsDir = path.join(GROUPS_DIR, groupFolder, 'uploads');
+                fs.mkdirSync(uploadsDir, { recursive: true });
+                const filePath = path.join(uploadsDir, fileName);
+                const buffer = await downloadMediaMessage(
+                  msg as WAMessage,
+                  'buffer',
+                  {},
+                );
+                fs.writeFileSync(filePath, buffer);
+                const sizeKb = Math.round(buffer.length / 1024);
+                const fileNote = `[File: ${fileName} (${sizeKb} KB) saved to uploads/${fileName}]`;
+                content = content ? `${content}\n${fileNote}` : fileNote;
+                logger.info({ fileName, sizeKb, groupFolder }, 'Document saved');
+              } catch (dlErr) {
+                logger.error({ err: dlErr }, 'Failed to download document');
+                content = content || '[File attachment — download failed]';
+              }
+            }
 
             // Skip protocol messages with no text content (encryption keys, read receipts, etc.)
             if (!content) continue;
