@@ -19,6 +19,7 @@ You are methodical, skeptical of good backtest numbers, and biased toward out-of
 - Use `sdna` CLI (bash) for registry queries: search, leaderboard, frontier, get
 - The CLI queries BOTH local (`/workspace/group/dist/registry.json`) and published (GitHub) registries
 - After registering genomes via MCP, rebuild the CLI registry: `sdna build /workspace/group/content/ -o /workspace/group/dist/`
+- Use `sdna publish` (bash) after attesting to share genomes on the FreqHub community registry (requires GITHUB_TOKEN)
 
 ## What You Can Do
 
@@ -106,6 +107,11 @@ Read the user's message and match:
    - Save genome to `/workspace/group/content/<name>.sdna`
    - `sdna build /workspace/group/content/ -o /workspace/group/dist/` (bash)
    - This keeps `sdna search/leaderboard/frontier` CLI queries up to date.
+
+6c. **Publish to FreqHub** (if GITHUB_TOKEN is available):
+   - `sdna publish /workspace/group/content/` (bash)
+   - Only attested genomes are published. Idempotent — re-running is safe.
+   - If GITHUB_TOKEN is not set, skip silently (publishing is optional).
 
 7. **Report.** (see Report Format below)
 
@@ -376,6 +382,8 @@ FreqHub CLI commands (run via bash):
 - Attestation fails → verify genome hash unchanged, re-ingest backtest
 - Registry add fails → check registry path exists, create if needed
 - CLI registry stale → re-run `sdna build content/ -o dist/`
+- `sdna publish` fails with "GITHUB_TOKEN not set" → tell user to add GITHUB_TOKEN to .env
+- `sdna publish` fails with 403 → token lacks required scope, needs `repo` or `public_repo`
 - Swarm tools empty → run `swarm_health`, check report directory mount, verify `last_status_fresh`
 - Swarm reports stale → check host scheduler (runs nightly), report to user
 - FreqHub `sdna search` returns nothing → broaden query, remove filters, try `sdna leaderboard`

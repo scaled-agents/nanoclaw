@@ -14,6 +14,11 @@ const DEFAULT_CONFIG = {
       url: 'https://raw.githubusercontent.com/adaptiveX-gh/freqhub/main/dist',
     },
   ],
+  publish: {
+    owner: 'adaptiveX-gh',
+    repo: 'freqhub',
+    branch: 'main',
+  },
   operator: 'wolfclaw',
   author: 'wolfclaw-agent-01',
   freqtrade_user_data: '',
@@ -63,6 +68,18 @@ export function loadAnnotations() {
 export function saveAnnotations(annotations) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   fs.writeFileSync(ANNOTATIONS_FILE, JSON.stringify(annotations, null, 2));
+}
+
+/**
+ * Get publish target configuration.
+ */
+export function getPublishTarget() {
+  const config = loadConfig();
+  return {
+    owner: config.publish?.owner || 'adaptiveX-gh',
+    repo: config.publish?.repo || 'freqhub',
+    branch: config.publish?.branch || 'main',
+  };
 }
 
 export { CONFIG_DIR, CONFIG_FILE };

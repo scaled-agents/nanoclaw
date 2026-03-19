@@ -292,6 +292,14 @@ function buildContainerArgs(
     if (val) args.push('-e', `${key}=${val}`);
   }
 
+  // Forward GitHub token for sdna publish
+  const ghKeys = ['GITHUB_TOKEN'];
+  const ghEnv = readEnvFile(ghKeys);
+  for (const key of ghKeys) {
+    const val = process.env[key] || ghEnv[key];
+    if (val) args.push('-e', `${key}=${val}`);
+  }
+
   // Route API traffic through the credential proxy (containers never see real secrets)
   args.push(
     '-e',

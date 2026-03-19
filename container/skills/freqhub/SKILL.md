@@ -10,7 +10,7 @@ description: >
 
 # FreqHub — Published Strategy Registry CLI
 
-12 commands via the `sdna` CLI for the **Search → Fetch → Fork → Compile → Attest** workflow.
+13 commands via the `sdna` CLI for the **Search → Fetch → Fork → Compile → Attest → Publish** workflow.
 
 ## When to Use FreqHub vs StrategyDNA MCP
 
@@ -70,6 +70,22 @@ sdna attest my_rsi.sdna --sharpe 1.2 --win-rate 0.6 --max-drawdown 0.08
 sdna build content/ -o dist/
 ```
 
+## Publishing (1 command)
+
+```bash
+# Publish attested genomes to the shared FreqHub GitHub registry
+sdna publish                          # Publish all attested genomes from content/
+sdna publish content/ --dry-run       # Preview without uploading
+sdna publish content/ --force         # Re-publish even if already present
+sdna publish content/ --json          # Machine-readable output
+```
+
+Requirements:
+- `GITHUB_TOKEN` must be set (with `repo` or `public_repo` scope)
+- Only genomes with `attestation.status: attested` are published
+- Idempotent: same genome hash = no-op (use `--force` to override)
+- Genomes are namespaced by operator: `content/{operator}/{genome-name}/`
+
 ## .sdna Format
 
 Genomes use YAML frontmatter + JSON body:
@@ -124,6 +140,7 @@ The CLI merges all configured sources when searching. Remote registries are cach
 4. sdna compile child.sdna -o strategies/          # Compile to FreqTrade
 5. Use freqtrade tools to backtest the compiled strategy
 6. Use strategydna MCP tools to attest and register results
+7. sdna publish content/                                # Share on FreqHub registry
 ```
 
 ### Explore Frontier

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import path from 'path';
 import { Command } from 'commander';
 import { initGenome, initFromStrategy, listTemplates } from '../src/commands/init.js';
 import { forkGenome } from '../src/commands/fork.js';
@@ -242,6 +243,34 @@ program
       if (opts.totalTrades != null) data.total_trades = opts.totalTrades;
       const result = attestGenome(source, data);
       console.log(JSON.stringify(result, null, 2));
+    } catch (err) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+// --- publish ---
+program
+  .command('publish [content-dir]')
+  .description('Publish attested genomes to the shared FreqHub registry')
+  .option('--dry-run', 'show what would be published without uploading')
+  .option('--force', 'republish even if genome hash already exists remotely')
+  .option('--json', 'output as JSON')
+  .action(async (contentDir, opts) => {
+    const { publishGenomes } = await import('../src/commands/publish.js');
+    try {
+      const dir = contentDir || path.join(process.cwd(), 'content');
+      const result = await publishGenomes(dir, opts);
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        for (const g of result.published) {
+          const icon = g.status === 'new' ? '+' : g.status === 'updated' ? '~' : '=';
+          console.log(`  ${icon} ${g.name.padEnd(30)} ${g.hash}  [${g.status}]`);
+        }
+        console.log(`\n  ${result.stats.new} new, ${result.stats.updated} updated, ${result.stats.skipped} skipped.`);
+        if (result.registryUpdated) console.log('  Registry updated.');
+      }
     } catch (err) {
       console.error(`Error: ${err.message}`);
       process.exit(1);
