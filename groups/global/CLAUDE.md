@@ -409,9 +409,12 @@ When working as a sub-agent or teammate, only use `send_message` if instructed b
 Files you create are saved in `/workspace/group/`. Strategies go in `/workspace/group/user_data/strategies/`.
 
 **Registry paths:**
-- MCP registry (managed by `sdna_registry_add`): `/workspace/group/registry/`
+- MCP registry (managed by `sdna_registry_add`): `/workspace/group/.sdna-registry/` (auto-created)
 - Genome content (saved .sdna files): `/workspace/group/content/`
 - CLI registry (built by `sdna build`): `/workspace/group/dist/`
+
+**Registry rules:**
+- When calling `sdna_registry_add`, ALWAYS pass `attestation_content` if you have attestation data. Never register a genome without its attestation — the tier and leaderboard scoring depend on it.
 
 ## Memory
 

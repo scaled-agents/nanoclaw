@@ -359,7 +359,7 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
     command: 'python3',
     args: ['-m', 'strategydna'],
     env: {
-      REGISTRY_PATH: '/workspace/group/registry',
+      REGISTRY_PATH: '.sdna-registry',
     },
   };
 

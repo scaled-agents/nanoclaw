@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -23,10 +24,12 @@ _ALLOWED_MUTATION_PREFIXES = (
     "informative_timeframes", "exchange.",
 )
 
+_DEFAULT_REGISTRY = os.environ.get("REGISTRY_PATH", ".sdna-registry")
 
-def _validate_registry_path(path: str) -> Path:
-    """Ensure registry path is relative and stays within cwd."""
-    p = Path(path)
+
+def _validate_registry_path(path_str: str) -> Path:
+    """Ensure registry path stays within cwd or matches REGISTRY_PATH."""
+    p = Path(path_str)
     if p.is_absolute():
         raise ValueError("Registry path must be relative")
     resolved = (Path.cwd() / p).resolve()
@@ -371,7 +374,7 @@ def _create_server() -> Any:
     def sdna_registry_add(
         sdna_content: str,
         attestation_content: str | None = None,
-        registry_path: str = ".sdna-registry",
+        registry_path: str = _DEFAULT_REGISTRY,
         registered_by: str = "",
     ) -> str:
         """Register a genome in the local registry, optionally with an attestation.
@@ -412,7 +415,7 @@ def _create_server() -> Any:
         tier: str | None = None,
         tags: list[str] | None = None,
         limit: int = 50,
-        registry_path: str = ".sdna-registry",
+        registry_path: str = _DEFAULT_REGISTRY,
     ) -> str:
         """Search the registry for strategies matching filters.
 
@@ -449,7 +452,7 @@ def _create_server() -> Any:
         pair: str | None = None,
         timeframe: str | None = None,
         limit: int = 20,
-        registry_path: str = ".sdna-registry",
+        registry_path: str = _DEFAULT_REGISTRY,
     ) -> str:
         """Get the ranked strategy leaderboard.
 
@@ -478,7 +481,7 @@ def _create_server() -> Any:
     @mcp.tool()
     def sdna_registry_show(
         genome_hash: str,
-        registry_path: str = ".sdna-registry",
+        registry_path: str = _DEFAULT_REGISTRY,
     ) -> str:
         """Look up a single registry entry by genome hash.
 
@@ -502,7 +505,7 @@ def _create_server() -> Any:
 
     @mcp.tool()
     def sdna_registry_export(
-        registry_path: str = ".sdna-registry",
+        registry_path: str = _DEFAULT_REGISTRY,
     ) -> str:
         """Export the full registry as a TradeV-importable snapshot.
 
