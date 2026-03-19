@@ -338,7 +338,7 @@ FreqHub CLI commands (run via bash):
 - Optimization completes → ALWAYS walk-forward
 - Walk-forward completes → ALWAYS attest and register
 - Any step completes → ALWAYS log to tds
-- After registration → ALWAYS rebuild CLI registry
+- After `sdna_registry_add` → IMMEDIATELY run `sdna build /workspace/group/content/ -o /workspace/group/dist/` (bash). Never skip this — the CLI registry and tier/leaderboard are stale until you do.
 
 **Stop and ask when:**
 - Validation fails with critical errors

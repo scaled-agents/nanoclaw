@@ -402,6 +402,7 @@ def _create_server() -> Any:
             "name": entry.name,
             "tier": entry.score.tier.value,
             "composite_score": entry.score.composite_score,
+            "next_step": "Run `sdna build content/ -o dist/` to sync the CLI registry so tier/leaderboard reflect this registration.",
         })
 
     @mcp.tool()
