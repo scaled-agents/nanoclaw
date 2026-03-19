@@ -220,7 +220,11 @@ export class WhatsAppChannel implements Channel {
                 const doc = normalized.documentMessage;
                 const fileName = doc.fileName || 'attachment';
                 const groupFolder = groups[chatJid].folder;
-                const uploadsDir = path.join(GROUPS_DIR, groupFolder, 'uploads');
+                const uploadsDir = path.join(
+                  GROUPS_DIR,
+                  groupFolder,
+                  'uploads',
+                );
                 fs.mkdirSync(uploadsDir, { recursive: true });
                 const filePath = path.join(uploadsDir, fileName);
                 const buffer = await downloadMediaMessage(
@@ -232,7 +236,10 @@ export class WhatsAppChannel implements Channel {
                 const sizeKb = Math.round(buffer.length / 1024);
                 const fileNote = `[File: ${fileName} (${sizeKb} KB) saved to uploads/${fileName}]`;
                 content = content ? `${content}\n${fileNote}` : fileNote;
-                logger.info({ fileName, sizeKb, groupFolder }, 'Document saved');
+                logger.info(
+                  { fileName, sizeKb, groupFolder },
+                  'Document saved',
+                );
               } catch (dlErr) {
                 logger.error({ err: dlErr }, 'Failed to download document');
                 content = content || '[File attachment — download failed]';
