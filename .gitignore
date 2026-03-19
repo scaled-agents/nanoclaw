@@ -39,3 +39,6 @@ agents-sdk-docs
 
 # Private MCP servers (cloned separately)
 container/freqtrade-mcp/
+
+#Claude Directory
+.claude/

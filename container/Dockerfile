@@ -47,13 +47,20 @@ RUN npm install -g agent-browser @anthropic-ai/claude-code @aisuite/chub
 # Persist chub annotations per-group (symlink to mounted group workspace)
 RUN ln -s /workspace/group/.chub /home/node/.chub
 
-# Install FreqHub CLI (sdna command for published registry)
-COPY freqhub/ /app/freqhub/
-RUN cd /app/freqhub && npm install --omit=dev && npm link
-
 # Install freqtrade-mcp Python server and dependencies
 COPY freqtrade-mcp/ /app/freqtrade-mcp/
 RUN pip install --break-system-packages freqtrade freqtrade-client "mcp[cli]"
+
+# Install strategydna-core MCP server (genome lifecycle: create, fork, compile, attest, register)
+# Python `sdna` CLI entry point gets overwritten by FreqHub's npm link below — that's intentional.
+# strategydna tools are accessed via MCP, not CLI.
+COPY strategydna-core/ /app/strategydna-core/
+RUN pip install --break-system-packages /app/strategydna-core[mcp]
+
+# Install FreqHub CLI (sdna command for registry queries) — must be AFTER strategydna-core
+# so npm link overwrites the Python sdna entry point
+COPY freqhub/ /app/freqhub/
+RUN cd /app/freqhub && npm install --omit=dev && npm link --force
 
 # Set default freqtrade binary path
 ENV FREQTRADE_PATH=/usr/local/bin/freqtrade

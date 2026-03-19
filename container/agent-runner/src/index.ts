@@ -354,6 +354,15 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
     },
   };
 
+  // StrategyDNA: genome lifecycle MCP (create, fork, compile, attest, register)
+  servers.strategydna = {
+    command: 'python3',
+    args: ['-m', 'strategydna'],
+    env: {
+      REGISTRY_PATH: '/workspace/group/registry',
+    },
+  };
+
   // TDS: only load if URL is configured
   if (process.env.TDS_URL) {
     servers.tds = {
@@ -471,6 +480,7 @@ async function runQuery(
         'NotebookEdit',
         'mcp__nanoclaw__*',
         'mcp__freqtrade__*',
+        'mcp__strategydna__*',
         'mcp__tds__*',
         'mcp__swarm__*',
       ],
