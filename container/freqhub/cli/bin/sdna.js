@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { initGenome, listTemplates } from '../src/commands/init.js';
+import { initGenome, initFromStrategy, listTemplates } from '../src/commands/init.js';
 import { forkGenome } from '../src/commands/fork.js';
 import { diffGenomes, formatDiff } from '../src/commands/diff.js';
 
@@ -20,10 +20,13 @@ program
   .option('-n, --name <name>', 'strategy name')
   .option('-p, --pairs <pairs>', 'comma-separated trading pairs')
   .option('--timeframe <tf>', 'candle timeframe')
+  .option('--from-strategy <path>', 'create genome from existing FreqTrade .py strategy')
   .option('-o, --output <path>', 'output file path')
   .action((opts) => {
     try {
-      const result = initGenome(opts);
+      const result = opts.fromStrategy
+        ? initFromStrategy(opts)
+        : initGenome(opts);
       if (result.content) {
         process.stdout.write(result.content);
       } else {

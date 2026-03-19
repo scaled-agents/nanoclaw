@@ -53,6 +53,7 @@ Read the user's message and match:
 - User asks about data availability or downloading data → **Workflow H** (Data Management)
 - User asks to compile, deploy, or show code → **Deployment Shortcut**
 - User asks about testing history or weekly report → **Reporting Shortcut**
+- User asks for autoresearch, experiment loop, autonomous exploration, or "try N mutations" → **Workflow I** (Autoresearch Loop)
 - Multiple strategies to test → Workflow A in sequence, then Workflow C
 - General question or non-trading task → answer directly
 
@@ -215,6 +216,39 @@ FreqHub CLI commands (run via bash):
 5. If gaps: offer to `freqtrade_download_data` for missing pairs/ranges
 6. If user just wants to download: `freqtrade_download_data` with specified params
 
+## Workflow I: Autoresearch Loop
+
+**Trigger:** "Run autoresearch on X" / "Try 5 mutations" / "Autonomous exploration" / "Experiment loop"
+
+1. **Parse inputs:**
+   - Seed genome: hash, path, or "use top frontier node"
+   - Mutation budget: N experiments (default 5)
+   - Time budget per experiment: minutes (default 15)
+   - If no seed: `sdna_registry_leaderboard` → pick #1, or `sdna frontier` (CLI) for best unexplored leaf
+
+2. **Check TDS for prior attempts:**
+   - `tds_query_events` with verb "discarded" for this genome family
+   - Exclude mutations already tried and logged as negative results
+
+3. **Loop** (repeat until mutation budget exhausted):
+   a. Generate mutation hypothesis (parameter tweak, signal swap, regime filter toggle, timeframe change)
+   b. `sdna_fork` with mutation → child genome
+   c. `sdna_compile` + `sdna_compile_config`
+   d. `freqtrade_download_data` (if data not already cached for this pair/timeframe)
+   e. `freqtrade_run_walk_forward` (6 windows, 70/30 split — skip hyperopt for speed)
+   f. Compare child WF Sharpe to parent WF Sharpe
+   g. **If improved:** `sdna_ingest_backtest` → `sdna_attest` → `sdna_registry_add` → `tds_record_event` (verb: "attested")
+   h. **If not improved:** discard child, `tds_record_event` (verb: "discarded", payload: parent_hash, mutation, child_sharpe, parent_sharpe, reason)
+   i. Update frontier: pick next best leaf (may have changed after registration)
+   j. Send progress: `send_message` — "Experiment N/M: [mutation] → WF Sharpe [X] (parent: [Y]) → [KEEP/DISCARD]"
+
+4. **Wrap up:**
+   a. Rebuild CLI registry: `sdna build /workspace/group/content/ -o /workspace/group/dist/` (bash)
+   b. Final report — table of ALL experiments:
+      | # | Parent | Mutation | Child WF Sharpe | Parent WF Sharpe | Verdict |
+   c. Summary: kept N, discarded M, best improvement, new frontier nodes
+   d. `tds_record_event` (verb: "loop_complete", payload: total_experiments, kept, discarded, best_sharpe)
+
 ## Deployment Shortcut
 
 **Trigger:** "Compile for deployment" / "Run in shadow mode" / "Show me the code"
@@ -318,6 +352,7 @@ FreqHub CLI commands (run via bash):
 - Hyperopt: 200 epochs, SortinoHyperOptLoss
 - Walk-forward: 6 windows, 70/30 split
 - Batch exploration: skip hyperopt, just backtest + walk-forward
+- Autoresearch: 15 min per experiment, 5 experiments per run (unless user overrides)
 
 **Quality thresholds:**
 - Minimum viable: WF Sharpe > 0.5, drawdown < 25%, > 30 trades
@@ -330,6 +365,7 @@ FreqHub CLI commands (run via bash):
 - Register unattested genomes
 - Silently fail — report errors, log them, suggest fixes
 - Compare in-sample metrics across strategies
+- Re-explore a mutation already logged as discarded in TDS (check first)
 
 ## Error Recovery
 

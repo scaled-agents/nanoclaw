@@ -4,6 +4,11 @@ import { fileURLToPath } from 'url';
 import { computeHash, displayHash } from '../lib/hash.js';
 import { parse, serialize } from '../lib/frontmatter.js';
 import { loadConfig } from '../lib/config.js';
+import {
+  parseStrategyFile,
+  loadCompanionConfig,
+  buildSkeletonBody,
+} from '../lib/strategy-parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
@@ -22,6 +27,58 @@ export function listTemplates() {
       tags: frontmatter.tags || [],
     };
   });
+}
+
+/**
+ * Create a new genome from an existing FreqTrade .py strategy file.
+ */
+export function initFromStrategy(options = {}) {
+  const { fromStrategy, name, output } = options;
+
+  if (!fs.existsSync(fromStrategy)) {
+    throw new Error(`Strategy file not found: ${fromStrategy}`);
+  }
+
+  const pyContent = fs.readFileSync(fromStrategy, 'utf-8');
+  const fileName = path.basename(fromStrategy);
+
+  // Parse strategy attributes via regex
+  const attrs = parseStrategyFile(pyContent, fileName);
+
+  // Try to load companion config
+  const companionConfig = loadCompanionConfig(fromStrategy);
+
+  // Build skeleton genome body
+  const body = buildSkeletonBody(attrs, companionConfig, fileName);
+
+  // Build frontmatter
+  const config = loadConfig();
+  const frontmatter = {
+    name: name || attrs.className || path.basename(fromStrategy, '.py'),
+    description: `Imported from ${fileName}`,
+    version: '1.0.0',
+    operator: config.operator,
+    author: config.author,
+    created: new Date().toISOString(),
+    parent: null,
+    tags: ['imported'],
+  };
+
+  // Compute hash from body
+  const hash = computeHash(body);
+  frontmatter.hash = displayHash(hash);
+
+  // Serialize
+  const content = serialize(frontmatter, body);
+
+  if (output) {
+    const dir = path.dirname(output);
+    if (dir) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(output, content);
+    return { path: output, hash: frontmatter.hash, name: frontmatter.name };
+  }
+
+  return { content, hash: frontmatter.hash, name: frontmatter.name };
 }
 
 /**
