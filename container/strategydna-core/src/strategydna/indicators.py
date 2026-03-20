@@ -16,6 +16,7 @@ class IndicatorDef:
     column: str = ""
     multi_output: list[str] = field(default_factory=list)
     ohlcv_input: str = "close"
+    code_template: str | None = None
 
     @property
     def is_multi_output(self) -> bool:
@@ -32,6 +33,12 @@ class IndicatorDef:
 
     def generate_code(self, params: dict[str, Any]) -> list[str]:
         """Generate Python code lines for populate_indicators()."""
+        if self.code_template is not None:
+            merged = {**self.default_params, **params}
+            code = self.code_template
+            for key, val in merged.items():
+                code = code.replace(f"{{{key}}}", str(val))
+            return [f"    {code}"]
         if self.talib_func is None:
             return []
 
@@ -90,6 +97,61 @@ INDICATOR_REGISTRY: dict[str, IndicatorDef] = {
     "obv": IndicatorDef(talib_func="OBV", default_params={}, column="obv"),
     "sar": IndicatorDef(talib_func="SAR", default_params={}, column="sar"),
     "volume": IndicatorDef(talib_func=None, column="volume"),
+    # --- TA-Lib indicators (added for drop-folder strategy coverage) ---
+    "willr": IndicatorDef(
+        talib_func="WILLR", default_params={"timeperiod": 14}, column="willr"
+    ),
+    "tema": IndicatorDef(
+        talib_func="TEMA", default_params={"timeperiod": 21}, column="tema_{timeperiod}"
+    ),
+    "kama": IndicatorDef(
+        talib_func="KAMA", default_params={"timeperiod": 21}, column="kama_{timeperiod}"
+    ),
+    "cmo": IndicatorDef(
+        talib_func="CMO", default_params={"timeperiod": 14}, column="cmo"
+    ),
+    "linearreg": IndicatorDef(
+        talib_func="LINEARREG", default_params={"timeperiod": 14}, column="linearreg_{timeperiod}"
+    ),
+    "plus_di": IndicatorDef(
+        talib_func="PLUS_DI", default_params={"timeperiod": 14}, column="plus_di"
+    ),
+    "minus_di": IndicatorDef(
+        talib_func="MINUS_DI", default_params={"timeperiod": 14}, column="minus_di"
+    ),
+    "stochf": IndicatorDef(
+        talib_func="STOCHF",
+        default_params={"fastk_period": 14, "fastd_period": 3},
+        multi_output=["fastk", "fastd"],
+    ),
+    # --- Non-TA-Lib indicators (pandas_ta, qtpylib, technical) ---
+    "cmf": IndicatorDef(
+        talib_func=None, default_params={"length": 20}, column="cmf",
+        code_template="dataframe['cmf'] = pta.cmf(dataframe['high'], dataframe['low'], dataframe['close'], dataframe['volume'], length={length})",
+    ),
+    "vwap": IndicatorDef(
+        talib_func=None, default_params={}, column="vwap",
+        code_template="dataframe['vwap'] = qtpylib.rolling_vwap(dataframe)",
+    ),
+    "ao": IndicatorDef(
+        talib_func=None, default_params={}, column="ao",
+        code_template="dataframe['ao'] = qtpylib.awesome_oscillator(dataframe)",
+    ),
+    "ichimoku": IndicatorDef(
+        talib_func=None,
+        default_params={"conversion_line_period": 9, "base_line_periods": 26},
+        multi_output=["tenkan_sen", "kijun_sen", "senkou_span_a", "senkou_span_b"],
+        code_template=(
+            "ichi = ichimoku(dataframe, conversion_line_period={conversion_line_period},"
+            " base_line_periods={base_line_periods})\n"
+            "    for col in ['tenkan_sen', 'kijun_sen', 'senkou_span_a', 'senkou_span_b']:\n"
+            "        dataframe[col] = ichi[col]"
+        ),
+    ),
+    "rma": IndicatorDef(
+        talib_func=None, default_params={"length": 13}, column="rma_{length}",
+        code_template="dataframe['rma_{length}'] = pta.rma(dataframe['close'], length={length})",
+    ),
 }
 
 

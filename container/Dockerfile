@@ -49,7 +49,7 @@ RUN ln -s /workspace/group/.chub /home/node/.chub
 
 # Install freqtrade-mcp Python server and dependencies
 COPY freqtrade-mcp/ /app/freqtrade-mcp/
-RUN pip install --break-system-packages freqtrade freqtrade-client "mcp[cli]" ta
+RUN pip install --break-system-packages freqtrade freqtrade-client "mcp[cli]" ta filelock
 
 # Install strategydna-core MCP server (genome lifecycle: create, fork, compile, attest, register)
 # Python `sdna` CLI entry point gets overwritten by FreqHub's npm link below — that's intentional.

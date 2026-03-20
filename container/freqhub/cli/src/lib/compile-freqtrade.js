@@ -57,6 +57,104 @@ const INDICATOR_MAP = {
       minus_di: '.adx_neg()',
     }),
   },
+  // --- TA-Lib indicators (added for drop-folder strategy coverage) ---
+  willr: {
+    import: 'ta.momentum.WilliamsRIndicator',
+    compute: (params) => `ta.momentum.WilliamsRIndicator(high=dataframe['high'], low=dataframe['low'], close=dataframe['close'], lbp=${params.period || 14}).williams_r()`,
+    column: () => 'willr',
+  },
+  tema: {
+    extraImport: 'talib',
+    compute: (params) => `talib.TEMA(dataframe['close'], timeperiod=${params.period || 21})`,
+    column: (params) => `tema_${params.period || 21}`,
+  },
+  kama: {
+    import: 'ta.momentum.KAMAIndicator',
+    compute: (params) => `ta.momentum.KAMAIndicator(close=dataframe['close'], window=${params.period || 21}).kama()`,
+    column: (params) => `kama_${params.period || 21}`,
+  },
+  cmo: {
+    extraImport: 'talib',
+    compute: (params) => `talib.CMO(dataframe['close'], timeperiod=${params.period || 14})`,
+    column: () => 'cmo',
+  },
+  linearreg: {
+    extraImport: 'talib',
+    compute: (params) => `talib.LINEARREG(dataframe['close'], timeperiod=${params.period || 14})`,
+    column: (params) => `linearreg_${params.period || 14}`,
+  },
+  plus_di: {
+    import: 'ta.trend.ADXIndicator',
+    compute: (params) => `ta.trend.ADXIndicator(high=dataframe['high'], low=dataframe['low'], close=dataframe['close'], window=${params.period || 14}).adx_pos()`,
+    column: () => 'plus_di',
+  },
+  minus_di: {
+    import: 'ta.trend.ADXIndicator',
+    compute: (params) => `ta.trend.ADXIndicator(high=dataframe['high'], low=dataframe['low'], close=dataframe['close'], window=${params.period || 14}).adx_neg()`,
+    column: () => 'minus_di',
+  },
+  stochf: {
+    extraImport: 'talib',
+    compute: (params) => `talib.STOCHF(dataframe['high'], dataframe['low'], dataframe['close'], fastk_period=${params.fastk_period || 14}, fastd_period=${params.fastd_period || 3})`,
+    multiColumn: true,
+    columns: () => ({ fastk: '[0]', fastd: '[1]' }),
+  },
+  stochrsi: {
+    extraImport: 'talib',
+    compute: (params) => `talib.STOCHRSI(dataframe['close'], timeperiod=${params.period || 14})`,
+    multiColumn: true,
+    columns: () => ({ stochrsi_k: '[0]', stochrsi_d: '[1]' }),
+  },
+  cci: {
+    import: 'ta.trend.CCIIndicator',
+    compute: (params) => `ta.trend.CCIIndicator(high=dataframe['high'], low=dataframe['low'], close=dataframe['close'], window=${params.period || 14}).cci()`,
+    column: () => 'cci',
+  },
+  mfi: {
+    import: 'ta.volume.MFIIndicator',
+    compute: (params) => `ta.volume.MFIIndicator(high=dataframe['high'], low=dataframe['low'], close=dataframe['close'], volume=dataframe['volume'], window=${params.period || 14}).money_flow_index()`,
+    column: () => 'mfi',
+  },
+  obv: {
+    import: 'ta.volume.OnBalanceVolumeIndicator',
+    compute: () => `ta.volume.OnBalanceVolumeIndicator(close=dataframe['close'], volume=dataframe['volume']).on_balance_volume()`,
+    column: () => 'obv',
+  },
+  sar: {
+    extraImport: 'talib',
+    compute: () => `talib.SAR(dataframe['high'], dataframe['low'])`,
+    column: () => 'sar',
+  },
+  // --- Non-TA-Lib indicators (pandas_ta, qtpylib, technical) ---
+  cmf: {
+    extraImport: 'pandas_ta',
+    compute: (params) => `pta.cmf(dataframe['high'], dataframe['low'], dataframe['close'], dataframe['volume'], length=${params.length || 20})`,
+    column: () => 'cmf',
+  },
+  vwap: {
+    compute: () => `qtpylib.rolling_vwap(dataframe)`,
+    column: () => 'vwap',
+  },
+  ao: {
+    compute: () => `qtpylib.awesome_oscillator(dataframe)`,
+    column: () => 'ao',
+  },
+  ichimoku: {
+    extraImport: 'technical',
+    compute: (params) => `ichimoku(dataframe, conversion_line_period=${params.conversion_line_period || 9}, base_line_periods=${params.base_line_periods || 26})`,
+    multiColumn: true,
+    columns: () => ({
+      tenkan_sen: "['tenkan_sen']",
+      kijun_sen: "['kijun_sen']",
+      senkou_span_a: "['senkou_span_a']",
+      senkou_span_b: "['senkou_span_b']",
+    }),
+  },
+  rma: {
+    extraImport: 'pandas_ta',
+    compute: (params) => `pta.rma(dataframe['close'], length=${params.length || 13})`,
+    column: (params) => `rma_${params.length || 13}`,
+  },
 };
 
 /**
@@ -134,11 +232,12 @@ function signalToCondition(signal, indicators) {
 }
 
 /**
- * Generate populate_indicators code.
+ * Generate populate_indicators code and collect extra imports needed.
  */
 function generateIndicators(indicatorSet) {
   const lines = [];
   const seen = new Set();
+  const extraImports = new Set();
 
   for (const raw of indicatorSet) {
     const { name, params } = JSON.parse(raw);
@@ -148,6 +247,8 @@ function generateIndicators(indicatorSet) {
     const key = `${name}_${JSON.stringify(params)}`;
     if (seen.has(key)) continue;
     seen.add(key);
+
+    if (mapping.extraImport) extraImports.add(mapping.extraImport);
 
     if (mapping.multiColumn) {
       const compute = mapping.compute(params);
@@ -164,7 +265,7 @@ function generateIndicators(indicatorSet) {
     }
   }
 
-  return lines.join('\n');
+  return { code: lines.join('\n'), extraImports };
 }
 
 /**
@@ -211,7 +312,7 @@ export function compileToFreqtrade(frontmatter, body) {
   }
 
   // Generate indicators code
-  const indicatorsCode = generateIndicators(indicators);
+  const { code: indicatorsCode, extraImports } = generateIndicators(indicators);
 
   // Risk params
   const risk = body.risk || {};
@@ -241,6 +342,13 @@ export function compileToFreqtrade(frontmatter, body) {
 
   let entryShortCond = entryShort || 'False';
 
+  // Build conditional imports
+  const extraImportLines = [];
+  if (extraImports.has('talib')) extraImportLines.push('import talib');
+  if (extraImports.has('pandas_ta')) extraImportLines.push('import pandas_ta as pta');
+  if (extraImports.has('technical')) extraImportLines.push('from technical.indicators import ichimoku');
+  const extraImportsBlock = extraImportLines.length > 0 ? '\n' + extraImportLines.join('\n') : '';
+
   const python = `# Auto-generated by sdna compile — do not edit manually
 # Source genome: ${frontmatter.name || 'unknown'}
 # Hash: ${frontmatter.hash || 'unknown'}
@@ -251,7 +359,7 @@ import pandas as pd
 import ta
 from freqtrade.strategy import IStrategy, merge_informative_pair
 from pandas import DataFrame
-import freqtrade.vendor.qtpylib.indicators as qtpylib
+import freqtrade.vendor.qtpylib.indicators as qtpylib${extraImportsBlock}
 
 
 class ${strategyName}(IStrategy):

@@ -242,6 +242,7 @@ FreqHub CLI commands (run via bash):
    c. `sdna_compile` + `sdna_compile_config`
    d. `freqtrade_download_data` (if data not already cached for this pair/timeframe)
    e. `freqtrade_run_walk_forward` (6 windows, 70/30 split — skip hyperopt for speed)
+   e1. **Validate WFO result:** Verify the tool result reports the expected stage count. If fewer stages than expected, record the reason (data gap, timeout, error) and flag it. Do NOT infer completion from log grepping or file presence — use the structured result from `freqtrade_run_walk_forward`.
    f. Compare child WF Sharpe to parent WF Sharpe
    g. **If improved:** `sdna_ingest_backtest` → `sdna_attest` → `sdna_registry_add` → `tds_record_event` (verb: "attested")
    h. **If not improved:** discard child, `tds_record_event` (verb: "discarded", payload: parent_hash, mutation, child_sharpe, parent_sharpe, reason)
@@ -250,10 +251,12 @@ FreqHub CLI commands (run via bash):
 
 4. **Wrap up:**
    a. Rebuild CLI registry: `sdna build /workspace/group/content/ -o /workspace/group/dist/` (bash)
-   b. Final report — table of ALL experiments:
-      | # | Parent | Mutation | Child WF Sharpe | Parent WF Sharpe | Verdict |
-   c. Summary: kept N, discarded M, best improvement, new frontier nodes
-   d. `tds_record_event` (verb: "loop_complete", payload: total_experiments, kept, discarded, best_sharpe)
+   b. Final report — use the exact columns from Batch Results Reporting (below).
+   c. **Baseline comparison (REQUIRED):** State baseline metrics, then for each mutation state whether it beats or trails. If ALL mutations trail: "All [N] mutations underperformed the baseline."
+   d. **Batch verdict (REQUIRED):** End with one of: DEPLOY [name], ITERATE on [name], or DISCARD ALL. Never present a "winner" that trails baseline without flagging the gap.
+   e. Summary: kept N, discarded M, best improvement, new frontier nodes
+   f. `tds_record_event` (verb: "loop_complete", payload: total_experiments, kept, discarded, best_sharpe, baseline_sharpe, all_beat_baseline)
+   g. Verify every experiment has a TDS entry (attested or discarded) before sending the final report.
 
 ## Deployment Shortcut
 
@@ -336,6 +339,29 @@ FreqHub CLI commands (run via bash):
 [1-3 sentences: deploy, iterate, or discard.]
 ```
 
+## Batch Results Reporting
+
+For Workflow G, I, or any multi-experiment run:
+
+*Batch Results: [experiment description]*
+*Baseline:* [name] — OOS Profit [X%], WF Sharpe [Y], Max DD [Z%]
+
+| # | Strategy | Mutation | OOS Profit | WF Sharpe | Max DD | Trades | Win Rate | Stages | vs Baseline | Verdict |
+
+*Column definitions:*
+• OOS Profit: cumulative out-of-sample profit across all walk-forward stages
+• WF Sharpe: Sharpe ratio on the full OOS equity curve (not average of per-stage Sharpes)
+• Max DD: worst drawdown in any single OOS stage
+• Stages: profitable_stages/total_stages — if denominator ≠ expected, add footnote explaining why
+• vs Baseline: +X% or -X% relative to baseline WF Sharpe
+• Verdict: BEAT BASELINE / TRAILS BASELINE / FAILED (with reason)
+
+*Rules:*
+• If any strategy shows fewer stages than expected, explain why (data gap, error, timeout)
+• Never declare a "winner" that trails the baseline without stating the gap
+• If ALL mutations trail baseline: "All [N] mutations underperformed. Verdict: DISCARD ALL, iterate on baseline."
+• End every batch report with: DEPLOY [name], ITERATE on [name], or DISCARD ALL
+
 ## Decision Rules
 
 **Proceed autonomously when:**
@@ -372,12 +398,18 @@ FreqHub CLI commands (run via bash):
 - Silently fail — report errors, log them, suggest fixes
 - Compare in-sample metrics across strategies
 - Re-explore a mutation already logged as discarded in TDS (check first)
+- Declare a mutation "winner" when it trails the baseline — always compare explicitly
+- Report WFO results without verifying stage counts match expectations
+- Infer WFO completion from log grepping or file presence — use the structured tool result
+- Send a batch report without a TDS entry for every experiment
+- Use "Avg Sharpe" or "Stages+" as column names — use exact names from Batch Results Reporting
 
 ## Error Recovery
 
 - Data download fails → check exchange name, pair format, try smaller date range
 - Backtest fails → validate strategy first, check config matches
 - Walk-forward fails → fewer windows, ensure 6+ months of data
+- Walk-forward stage count mismatch → check tool result for error/skip per stage, report which stages failed and why
 - Hyperopt slow → reduce epochs, narrow search spaces
 - Attestation fails → verify genome hash unchanged, re-ingest backtest
 - Registry add fails → check registry path exists, create if needed
@@ -399,6 +431,8 @@ Use `mcp__nanoclaw__send_message` to send progress updates while still working:
 - "✓ Backtest complete: Sharpe [X], [N] trades. Running hyperopt..."
 - "✓ Walk-forward complete. Preparing report..."
 - "✓ Registered genome [hash]. Rebuilding registry..."
+- "⚠️ [Strategy]: only [X]/[Y] WFO stages completed. [reason]. Results are partial."
+- "❌ All [N] mutations trail baseline ([name]: WF Sharpe [X]). Verdict: [DISCARD ALL / ITERATE]."
 
 ### Internal thoughts
 
@@ -414,7 +448,12 @@ When working as a sub-agent or teammate, only use `send_message` if instructed b
 
 ## Your Workspace
 
-Files you create are saved in `/workspace/group/`. Strategies go in `/workspace/group/user_data/strategies/`.
+Files you create are saved in `/workspace/group/`. Compiled strategies go in `/workspace/group/user_data/strategies/`.
+
+**Strategy paths (important — two different folders):**
+- `/workspace/group/drop/` — **User drop folder.** The user places strategy bundles here (subfolders with `.py` strategy files + exchange config `.json` files). When user says "test strategies", "test what's in drop", or "strategies folder", they mean THIS folder. Always `ls /workspace/group/drop/` first.
+- `/workspace/group/user_data/strategies/` — **FreqTrade runtime folder.** Where compiled strategies go for backtesting. FreqTrade MCP tools read from here.
+- When testing a strategy from the drop folder, copy the `.py` to `user_data/strategies/` and use the exchange config `.json` for pairs/timeframe/exchange settings.
 
 **Registry paths:**
 - MCP registry (managed by `sdna_registry_add`): `/workspace/group/.sdna-registry/` (auto-created)
