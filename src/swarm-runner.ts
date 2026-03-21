@@ -17,14 +17,23 @@ import fs from 'fs';
 import path from 'path';
 
 import { DATA_DIR } from './config.js';
+import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+
+const swarmEnv = readEnvFile([
+  'SWARM_REPORT_DIR',
+  'FREQTRADE_SWARM_DIR',
+]);
 
 const POLL_MS = 3000;
 const MAX_CONCURRENT_SWARM_JOBS = 2;
 const SWARM_REPORT_DIR =
-  process.env.SWARM_REPORT_DIR || path.join(DATA_DIR, 'swarm-reports');
+  process.env.SWARM_REPORT_DIR ||
+  swarmEnv.SWARM_REPORT_DIR ||
+  path.join(DATA_DIR, 'swarm-reports');
 const REQUEST_DIR = path.join(SWARM_REPORT_DIR, 'requests');
-const FREQTRADE_SWARM_DIR = process.env.FREQTRADE_SWARM_DIR || '';
+const FREQTRADE_SWARM_DIR =
+  process.env.FREQTRADE_SWARM_DIR || swarmEnv.FREQTRADE_SWARM_DIR || '';
 
 interface RunningJob {
   runId: string;
