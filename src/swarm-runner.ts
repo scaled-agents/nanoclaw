@@ -20,10 +20,7 @@ import { DATA_DIR } from './config.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 
-const swarmEnv = readEnvFile([
-  'SWARM_REPORT_DIR',
-  'FREQTRADE_SWARM_DIR',
-]);
+const swarmEnv = readEnvFile(['SWARM_REPORT_DIR', 'FREQTRADE_SWARM_DIR']);
 
 const POLL_MS = 3000;
 const MAX_CONCURRENT_SWARM_JOBS = 2;
