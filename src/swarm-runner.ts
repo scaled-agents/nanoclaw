@@ -140,6 +140,109 @@ function copyGroupStrategiesToSwarm(
   }
 }
 
+/**
+ * Ensure a freqtrade config file exists in the swarm's data directory.
+ * Copies the group's config if available, otherwise generates a minimal
+ * backtest-only config from the spec's exchange settings.
+ * Returns the swarm-local config path (relative to FREQTRADE_SWARM_DIR).
+ */
+function ensureSwarmConfig(
+  groupFolder: string,
+  specPath: string,
+): string {
+  const swarmConfigDir = path.join(FREQTRADE_SWARM_DIR, 'data', 'user_data');
+  const swarmConfigPath = path.join(swarmConfigDir, 'config.json');
+
+  // Try to copy the group's binance futures config
+  const groupConfigDir = path.join(
+    DATA_DIR,
+    'sessions',
+    groupFolder,
+    'freqtrade-user-data',
+  );
+  const groupConfig = path.join(groupConfigDir, 'config_binance_futures.json');
+
+  if (fs.existsSync(groupConfig)) {
+    fs.mkdirSync(swarmConfigDir, { recursive: true });
+    fs.copyFileSync(groupConfig, swarmConfigPath);
+    logger.info(
+      { src: groupConfig, dst: swarmConfigPath },
+      'Copied group config to swarm',
+    );
+    return './data/user_data/config.json';
+  }
+
+  // No group config — generate a minimal one from the spec
+  let exchange = 'binance';
+  let tradingMode = 'futures';
+  let marginMode = 'isolated';
+
+  try {
+    const spec = JSON.parse(fs.readFileSync(specPath, 'utf-8'));
+    if (spec.exchange) exchange = spec.exchange;
+    const genome = spec.genome as Record<string, unknown> | undefined;
+    const exch = genome?.exchange as Record<string, string> | undefined;
+    if (exch?.name) exchange = exch.name;
+    if (exch?.trading_mode) tradingMode = exch.trading_mode;
+    if (exch?.margin_mode) marginMode = exch.margin_mode;
+  } catch {
+    // Use defaults
+  }
+
+  const minimalConfig = {
+    trading_mode: tradingMode,
+    margin_mode: marginMode,
+    stake_currency: 'USDT',
+    stake_amount: 'unlimited',
+    dry_run: true,
+    dry_run_wallet: 1000,
+    max_open_trades: 1,
+    exchange: {
+      name: exchange,
+      key: '',
+      secret: '',
+    },
+    pairlists: [{ method: 'StaticPairList' }],
+  };
+
+  fs.mkdirSync(swarmConfigDir, { recursive: true });
+  fs.writeFileSync(swarmConfigPath, JSON.stringify(minimalConfig, null, 2));
+  logger.info(
+    { dst: swarmConfigPath, exchange, tradingMode },
+    'Generated minimal swarm config',
+  );
+  return './data/user_data/config.json';
+}
+
+/**
+ * Rewrite the spec's config_path to point to a swarm-local config file.
+ * Writes a new spec file in the report directory and returns its path.
+ */
+function rewriteSpecConfigPath(
+  specPath: string,
+  reportDir: string,
+  swarmConfigPath: string,
+): string {
+  try {
+    const spec = JSON.parse(fs.readFileSync(specPath, 'utf-8'));
+    const originalPath = spec.config_path;
+    spec.config_path = swarmConfigPath;
+    const rewrittenPath = path.join(reportDir, 'spec_rewritten.json');
+    fs.writeFileSync(rewrittenPath, JSON.stringify(spec, null, 2));
+    logger.debug(
+      { original: originalPath, rewritten: swarmConfigPath },
+      'Rewrote spec config_path for swarm',
+    );
+    return rewrittenPath;
+  } catch (err) {
+    logger.warn(
+      { err, specPath },
+      'Failed to rewrite spec config_path — using original',
+    );
+    return specPath;
+  }
+}
+
 function processRequest(requestFile: string): void {
   const runId = path.basename(requestFile, '.request.json');
 
@@ -198,14 +301,17 @@ function processRequest(requestFile: string): void {
     pid: null, // filled after spawn
   });
 
-  // Copy strategy files from the group's container storage into the swarm dir
-  if (manifest.group_folder) {
-    copyGroupStrategiesToSwarm(manifest.group_folder, specPath);
-  }
-
   // Spawn the freqtrade-swarm process
   const reportDir = path.join(SWARM_REPORT_DIR, 'jobs', runId);
   fs.mkdirSync(reportDir, { recursive: true });
+
+  // Copy strategy files and ensure config exists in swarm dir
+  let effectiveSpecPath = specPath;
+  if (manifest.group_folder) {
+    copyGroupStrategiesToSwarm(manifest.group_folder, specPath);
+    const swarmConfigPath = ensureSwarmConfig(manifest.group_folder, specPath);
+    effectiveSpecPath = rewriteSpecConfigPath(specPath, reportDir, swarmConfigPath);
+  }
 
   // Pass workers count as env var (default 4, capped at 8)
   const workers = Math.min(manifest.workers || 4, 8);
@@ -219,7 +325,7 @@ function processRequest(requestFile: string): void {
           'autoresearch',
           'submit',
           '--spec',
-          specPath,
+          effectiveSpecPath,
           '--report-dir',
           reportDir,
         ]
@@ -229,7 +335,7 @@ function processRequest(requestFile: string): void {
           'job',
           'submit',
           '--spec',
-          specPath,
+          effectiveSpecPath,
           '--report-dir',
           reportDir,
         ];
@@ -307,7 +413,10 @@ function processRequest(requestFile: string): void {
     });
 
     if (succeeded) {
-      logger.info({ runId, code }, 'Swarm job completed');
+      logger.info(
+        { runId, code, ...(stderr ? { stderr: stderr.slice(0, 500) } : {}) },
+        'Swarm job completed',
+      );
     } else {
       logger.error(
         { runId, code, stderr: stderr.slice(0, 500) },
