@@ -24,8 +24,7 @@ const MAX_CONCURRENT_SWARM_JOBS = 2;
 const SWARM_REPORT_DIR =
   process.env.SWARM_REPORT_DIR || path.join(DATA_DIR, 'swarm-reports');
 const REQUEST_DIR = path.join(SWARM_REPORT_DIR, 'requests');
-const FREQTRADE_SWARM_DIR =
-  process.env.FREQTRADE_SWARM_DIR || '';
+const FREQTRADE_SWARM_DIR = process.env.FREQTRADE_SWARM_DIR || '';
 
 interface RunningJob {
   runId: string;
@@ -36,10 +35,7 @@ interface RunningJob {
 const activeJobs = new Map<string, RunningJob>();
 let running = false;
 
-function writeStatus(
-  runId: string,
-  status: Record<string, unknown>,
-): void {
+function writeStatus(runId: string, status: Record<string, unknown>): void {
   const statusPath = path.join(REQUEST_DIR, `${runId}.status.json`);
   fs.writeFileSync(statusPath, JSON.stringify(status, null, 2));
 }
@@ -149,6 +145,28 @@ function processRequest(requestFile: string): void {
     const finishedAt = new Date().toISOString();
     const succeeded = code === 0;
 
+    // Try to read summary stats from results.json for the status
+    let summary: Record<string, unknown> | undefined;
+    if (succeeded) {
+      try {
+        const resultsPath = path.join(reportDir, 'latest', 'results.json');
+        if (fs.existsSync(resultsPath)) {
+          const results = JSON.parse(fs.readFileSync(resultsPath, 'utf-8'));
+          summary = {
+            total_combinations: results.results?.length ?? 0,
+            total_backtests: results.total_backtests ?? 0,
+            successful_backtests: results.successful_backtests ?? 0,
+            failed_backtests: results.failed_backtests ?? 0,
+            top_combo: results.top_k?.[0]
+              ? `${results.top_k[0].pair} ${results.top_k[0].timeframe} (score=${results.top_k[0].composite_score?.toFixed(3)})`
+              : null,
+          };
+        }
+      } catch {
+        // Non-critical — status still written without summary
+      }
+    }
+
     writeStatus(runId, {
       run_id: runId,
       status: succeeded ? 'completed' : 'failed',
@@ -157,6 +175,7 @@ function processRequest(requestFile: string): void {
       finished_at: finishedAt,
       exit_code: code,
       report_dir: reportDir,
+      ...(summary ? { summary } : {}),
       ...(stderr && !succeeded ? { error: stderr.slice(0, 2000) } : {}),
     });
 

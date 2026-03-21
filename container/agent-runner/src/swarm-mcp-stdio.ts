@@ -238,7 +238,7 @@ server.tool(
 
 server.tool(
   'swarm_poll_run',
-  'Check the status of a submitted swarm run by its run_id. Returns status (queued/running/completed/failed), exit code, and timestamps.',
+  'Check the status of a submitted swarm run by its run_id. Returns status (queued/running/completed/failed), exit code, and timestamps. For completed jobs, includes report_dir path — use swarm_job_results to read full results.',
   {
     run_id: z.string().describe('Run ID returned by swarm_trigger_run'),
   },
@@ -259,6 +259,45 @@ server.tool(
       return ok(status);
     } catch (e) {
       return err(`Failed to poll run: ${(e as Error).message}`);
+    }
+  },
+);
+
+server.tool(
+  'swarm_job_results',
+  'Read the full results of a completed matrix sweep job. Returns heatmap, top-K rankings, cluster analysis, and per-combination metrics. Call after swarm_poll_run shows status=completed.',
+  {
+    run_id: z.string().describe('Run ID returned by swarm_trigger_run'),
+  },
+  async (args) => {
+    try {
+      // First check status to get report_dir
+      const statusPath = path.join(REQUEST_DIR, `${args.run_id}.status.json`);
+      if (!fs.existsSync(statusPath)) {
+        return err(`Run not found: ${args.run_id}. Use swarm_trigger_run to submit a new run.`);
+      }
+
+      const status = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+      if (status.status !== 'completed') {
+        return err(`Run ${args.run_id} is not completed (status: ${status.status}). Wait for completion before reading results.`);
+      }
+
+      if (!status.report_dir) {
+        return err(`Run ${args.run_id} completed but has no report_dir. Check exit code: ${status.exit_code}`);
+      }
+
+      // Read results.json from report dir
+      const resultsPath = path.join(status.report_dir, 'latest', 'results.json');
+      const content = readFile(resultsPath);
+      if (!content) {
+        return err(`Results file not found at ${resultsPath}. The job may have failed to write output.`);
+      }
+
+      const results = JSON.parse(content);
+      log(`Job results: ${args.run_id} — ${results.results?.length || 0} combinations, status=${results.status}`);
+      return ok(results);
+    } catch (e) {
+      return err(`Failed to read job results: ${(e as Error).message}`);
     }
   },
 );

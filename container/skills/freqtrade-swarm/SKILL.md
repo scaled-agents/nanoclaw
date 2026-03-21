@@ -9,7 +9,7 @@ description: >
 
 # Freqtrade Swarm — Strategy Research & Matrix Sweep
 
-9 tools for viewing strategy screening results and triggering matrix sweep
+10 tools for viewing strategy screening results and triggering matrix sweep
 jobs via the freqtrade-swarm engine.
 
 ## Read-Only Tools (6)
@@ -23,12 +23,13 @@ jobs via the freqtrade-swarm engine.
 | `swarm_run_details` | Get leaderboard + status for a specific archived run |
 | `swarm_health` | Check if report directory is configured and has recent data |
 
-## Trigger Tools (3)
+## Trigger Tools (4)
 
 | Tool | What it does |
 |------|-------------|
 | `swarm_trigger_run` | Submit a matrix sweep job. Returns a `run_id` for polling |
 | `swarm_poll_run` | Check status of a submitted run (queued/running/completed/failed) |
+| `swarm_job_results` | Read full results of a completed job (heatmap, top-K, clusters) |
 | `swarm_cancel_run` | Cancel a running or queued sweep job |
 
 ## Common Patterns
@@ -46,10 +47,10 @@ jobs via the freqtrade-swarm engine.
 2. `swarm_run_details` with each run_id → compare leaderboards
 
 **Trigger a grid test (matrix sweep):**
-1. Build a `MatrixSweepSpec` JSON with genome, pairs, timeframes
+1. Build a `MatrixSweepSpec` JSON with genome, pairs, timeframes, timerange
 2. `swarm_trigger_run` with the spec JSON → get `run_id`
 3. `swarm_poll_run` with `run_id` → check progress until completed
-4. Results appear in the report directory
+4. `swarm_job_results` with `run_id` → get heatmap, top-K, clusters, per-combo metrics
 
 **MatrixSweepSpec JSON format:**
 ```json
@@ -57,6 +58,7 @@ jobs via the freqtrade-swarm engine.
   "genome": { ... },
   "pairs": ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT"],
   "timeframes": ["15m", "1h", "4h"],
+  "timerange": "20250101-20260301",
   "n_walkforward_windows": 4,
   "fees": [0.001],
   "exchange": "binance"
