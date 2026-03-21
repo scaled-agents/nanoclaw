@@ -55,6 +55,7 @@ Read the user's message and match:
 - User asks to compile, deploy, or show code → **Deployment Shortcut**
 - User asks about testing history or weekly report → **Reporting Shortcut**
 - User asks for autoresearch, experiment loop, autonomous exploration, or "try N mutations" → **Workflow I** (Autoresearch Loop)
+- User asks "how's research going", "stats", "dashboard", "metrics", "research health" → **Workflow J** (Research Metrics)
 - Multiple strategies to test → Workflow A in sequence, then Workflow C
 - General question or non-trading task → answer directly
 
@@ -150,6 +151,7 @@ Read the user's message and match:
 
 **Trigger:** Scheduled task, or "what did the swarm find?" / "morning report"
 
+0. **Research pulse** — run `sdna metrics --json -r /workspace/group/dist/registry.json` (bash), format as the compact 3-line Research Pulse block from research-metrics skill, place at top of morning report.
 1. `swarm_health` → verify reports are fresh (check `last_status_fresh`)
 2. `swarm_run_status` → check last run completed successfully
 3. `swarm_leaderboard` → get top candidates with structured metrics
@@ -257,6 +259,16 @@ FreqHub CLI commands (run via bash):
    e. Summary: kept N, discarded M, best improvement, new frontier nodes
    f. `tds_record_event` (verb: "loop_complete", payload: total_experiments, kept, discarded, best_sharpe, baseline_sharpe, all_beat_baseline)
    g. Verify every experiment has a TDS entry (attested or discarded) before sending the final report.
+
+## Workflow J: Research Metrics Dashboard
+
+**Trigger:** "how's research going" / "stats" / "dashboard" / "metrics" / "research health"
+
+1. First ensure registry is current: `sdna build /workspace/group/content/ -o /workspace/group/dist/` (bash)
+2. Run `sdna metrics --json -r /workspace/group/dist/registry.json --snapshot` (bash)
+3. Parse the JSON output
+4. Format using the research-metrics skill templates (full dashboard or morning compact)
+5. If `_gaps` array is non-empty, mention the gaps at the bottom
 
 ## Deployment Shortcut
 

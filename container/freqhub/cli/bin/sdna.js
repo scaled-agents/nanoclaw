@@ -277,4 +277,31 @@ program
     }
   });
 
+// --- metrics ---
+program
+  .command('metrics')
+  .description('Compute research pipeline health metrics')
+  .option('-r, --registry <path>', 'path to registry.json', 'dist/registry.json')
+  .option('--tds-url <url>', 'TDS base URL (default: $TDS_URL)')
+  .option('--snapshot', 'save weekly snapshot to ~/.sdna/snapshots/')
+  .option('--json', 'output as JSON')
+  .action(async (opts) => {
+    const { computeMetrics, printMetricsSummary } = await import('../src/commands/metrics.js');
+    try {
+      const result = await computeMetrics({
+        registryPath: opts.registry,
+        tdsUrl: opts.tdsUrl || process.env.TDS_URL,
+        snapshot: opts.snapshot,
+      });
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        printMetricsSummary(result);
+      }
+    } catch (err) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
 program.parse();
