@@ -1,4 +1,4 @@
-# Freqtrade Swarm — overnight strategy research pipeline
+# FreqSwarm — overnight strategy research pipeline
 #
 # Run manually:
 #   docker compose run --rm swarm python -m src run \
@@ -13,7 +13,7 @@
 services:
   swarm:
     build:
-      context: ${SWARM_REPO_PATH:-../../freqtrade-swarm}
+      context: ${SWARM_REPO_PATH:-../../FreqSwarm}
       dockerfile: Dockerfile
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

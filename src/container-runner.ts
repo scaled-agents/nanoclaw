@@ -291,11 +291,11 @@ function buildContainerArgs(
     if (val) args.push('-e', `${key}=${val}`);
   }
 
-  // Forward TDS settings from .env to container
-  const tdsKeys = ['TDS_URL', 'TDS_API_KEY', 'TDS_AGENT_ID'];
-  const tdsEnv = readEnvFile(tdsKeys);
-  for (const key of tdsKeys) {
-    const val = process.env[key] || tdsEnv[key];
+  // Forward aphexDATA settings from .env to container
+  const aphexdataKeys = ['APHEXDATA_URL', 'APHEXDATA_API_KEY', 'APHEXDATA_AGENT_ID'];
+  const aphexdataEnv = readEnvFile(aphexdataKeys);
+  for (const key of aphexdataKeys) {
+    const val = process.env[key] || aphexdataEnv[key];
     if (val) args.push('-e', `${key}=${val}`);
   }
 
@@ -480,7 +480,7 @@ export async function runContainerAgent(
       for (const line of lines) {
         if (
           line.includes('[FREQTRADE]') ||
-          line.includes('[TDS]') ||
+          line.includes('[aphexDATA]') ||
           line.includes('[SWARM]')
         ) {
           logger.info({ container: group.folder }, line);

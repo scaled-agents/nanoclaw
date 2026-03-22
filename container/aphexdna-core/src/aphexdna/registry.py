@@ -13,10 +13,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from strategydna.attestation import from_attestation_json, to_attestation_json
-from strategydna.models import GenomeDocument
-from strategydna.scoring import RegistryScore, RegistryTier, score_entry
-from strategydna.verification import Attestation
+from aphexdna.attestation import from_attestation_json, to_attestation_json
+from aphexdna.models import GenomeDocument
+from aphexdna.scoring import RegistryScore, RegistryTier, score_entry
+from aphexdna.verification import Attestation
 
 logger = logging.getLogger(__name__)
 _VALID_HASH = re.compile(r"^(?:sha256:)?[0-9a-f]+$")

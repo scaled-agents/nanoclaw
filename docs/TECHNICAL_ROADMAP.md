@@ -21,9 +21,9 @@ code, then implement. Test against the gate criteria before reporting done.
 What works:
 - NanoClaw agent with 100 MCP tools across 5 servers
 - FreqHub registry with genomes, DAG, leaderboard
-- StrategyDNA core with genome format, compile, attest
+- aphexDNA core with genome format, compile, attest
 - FreqTrade MCP with 57 tools
-- TDS with 13 tools and event logging
+- aphexDATA with 13 tools and event logging
 - FreqSwarm with parallel execution (4-8 workers)
 - Autoresearch loop (Workflow I) defined in system prompt
 
@@ -89,7 +89,7 @@ all 6 phases.
 │                                                                 │
 │   What it does:                                                 │
 │   • Provides the WolfClaw system prompt (agent identity)        │
-│   • Connects MCP tools (FreqTrade, StrategyDNA, TDS)            │
+│   • Connects MCP tools (FreqTrade, aphexDNA, aphexDATA)            │
 │   • Hosts the skills library (how to use each tool)             │
 │   • Runs the agent container (boot, auth, lifecycle)            │
 │   • Bridges to ClawTeam (inbox ↔ send_message)                  │
@@ -101,7 +101,7 @@ all 6 phases.
 │                                                                 │
 │   Talks to:                                                     │
 │   ┌─────────────┐  ┌──────────────┐  ┌─────────────┐           │
-│   │ FreqTrade   │  │ StrategyDNA  │  │ TDS         │           │
+│   │ FreqTrade   │  │ aphexDNA  │  │ aphexDATA         │           │
 │   │ MCP (57)    │  │ MCP (16)     │  │ MCP (13)    │           │
 │   └──────┬──────┘  └──────┬───────┘  └──────┬──────┘           │
 │          │                │                  │                  │
@@ -110,7 +110,7 @@ all 6 phases.
            ▼                ▼                  ▼
 ┌──────────────────┐ ┌───────────────┐ ┌──────────────────┐
 │                  │ │               │ │                  │
-│ FreqSwarm        │ │ FreqHub       │ │ TDS              │
+│ FreqSwarm        │ │ FreqHub       │ │ aphexDATA              │
 │ (lib, Phase 5)   │ │               │ │                  │
 │                  │ │ Role: MEMORY  │ │ Role: NERVOUS    │
 │ Role: MUSCLE     │ │               │ │ SYSTEM           │
@@ -151,11 +151,11 @@ all 6 phases.
    Picks top genome, generates mutation
                     │
                     ▼
-3. NanoClaw calls StrategyDNA: sdna fork --mutations
+3. NanoClaw calls aphexDNA: sdna fork --mutations
    New child genome created with parent pointer
                     │
                     ▼
-4. NanoClaw calls StrategyDNA: sdna compile
+4. NanoClaw calls aphexDNA: sdna compile
    Genome → FreqTrade IStrategy .py file
                     │
                     ▼
@@ -171,7 +171,7 @@ all 6 phases.
          IMPROVED     NOT IMPROVED
               │           │
               ▼           ▼
-7a. sdna attest    7b. tds_record_event
+7a. sdna attest    7b. aphexdata_record_event
     sdna registry      (verb: discarded,
     add                 mutation details)
               │           │
@@ -191,25 +191,25 @@ all 6 phases.
 ### Component lifecycle across phases
 
 ```
-Phase 1: [NanoClaw] ←→ [FreqSwarm (fix bugs)] ←→ [FreqHub] ←→ [TDS]          ✅ DONE
+Phase 1: [NanoClaw] ←→ [FreqSwarm (fix bugs)] ←→ [FreqHub] ←→ [aphexDATA]          ✅ DONE
          Single agent, stable execution, clear errors
 
 Phase 2: [NanoClaw] ←→ [FreqTrade MCP] ←→ [FreqHub (seed 397 strategies)]     ← YOU ARE HERE
          Single agent, validate → screen → walk-forward → register
 
-Phase 3: [NanoClaw] ←→ [FreqSwarm (+ autoresearch)] ←→ [FreqHub] ←→ [TDS]
+Phase 3: [NanoClaw] ←→ [FreqSwarm (+ autoresearch)] ←→ [FreqHub] ←→ [aphexDATA]
          Single agent, autoresearch loop, daytime → overnight
 
-Phase 4: [NanoClaw] ←→ [FreqSwarm] ←→ [FreqHub (+ Aphex)] ←→ [TDS (+ dashboard)]
+Phase 4: [NanoClaw] ←→ [FreqSwarm] ←→ [FreqHub (+ Aphex)] ←→ [aphexDATA (+ dashboard)]
          Single agent, measurement framework, correct scoring
 
-Phase 5: [ClawTeam] → [NanoClaw ×3] ←→ [FreqSwarm] ←→ [FreqHub] ←→ [TDS]
+Phase 5: [ClawTeam] → [NanoClaw ×3] ←→ [FreqSwarm] ←→ [FreqHub] ←→ [aphexDATA]
          Multi-agent, coordinated research, cross-pollination
 
-Phase 6: [ClawTeam] → [NanoClaw ×3] ←→ [FreqSwarm (lib)] ←→ [FreqHub] ←→ [TDS]
+Phase 6: [ClawTeam] → [NanoClaw ×3] ←→ [FreqSwarm (lib)] ←→ [FreqHub] ←→ [aphexDATA]
          FreqSwarm slimmed to library, no daemon/queue
 
-Phase 7: [ClawTeam] → [NanoClaw ×3] ←→ [FreqSwarm (lib)] ←→ [FreqHub] ←→ [TDS]
+Phase 7: [ClawTeam] → [NanoClaw ×3] ←→ [FreqSwarm (lib)] ←→ [FreqHub] ←→ [aphexDATA]
          Production hardened, monitored, documented
 ```
 
@@ -237,7 +237,7 @@ Steps:
 ### 1.2 Add pre-flight checks
 
 Implement the swarm pre-flight system from SWARM_QUALITY_SPEC.md:
-- New preflight_check thread type in freqtrade-swarm
+- New preflight_check thread type in FreqSwarm
 - Insert preflight as first DAG node in all DAG builders
 - System prompt update with mandatory pre-flight checklist
 
@@ -439,7 +439,7 @@ For each survivor, run the FULL FreqHub pipeline:
    - sdna registry add
    - The genome enters the DAG as a root node
 
-6. Log to TDS:
+6. Log to aphexDATA:
    - Record the experiment event
    - Include all metrics
 
@@ -486,7 +486,7 @@ SUI/USDT:USDT, APT/USDT:USDT, ARB/USDT:USDT, OP/USDT:USDT
 [ ] Stage 3: FreqHub registry has 20+ walk-forward attested genomes
 [ ] Stage 3: DAG has root nodes with correct hashes
 [ ] Stage 3: Leaderboard ranks by walk-forward Sharpe (or Aphex if Phase 3 done)
-[ ] Stage 3: TDS has experiment events for all tested strategies
+[ ] Stage 3: aphexDATA has experiment events for all tested strategies
 [ ] The autoresearch loop (Phase 3) now has 20+ frontier nodes to explore
     instead of the handful of manually-created genomes from before
 ```
@@ -532,15 +532,15 @@ plus a few minutes for compile and attest.
 After it finishes, check:
 - Did the genome get attested (if keeper)?
 - Is it in the registry?
-- Did TDS log the experiment event?
-- If it was a reject, was the negative result logged to TDS?
+- Did aphexDATA log the experiment event?
+- If it was a reject, was the negative result logged to aphexDATA?
 - Does the DAG show the new genome as a child of the frontier node?
 
 **Phase 3a Gate:**
 ```
 [ ] One mutation completes end-to-end
 [ ] Keeper path works: attest → register → leaderboard updated
-[ ] Reject path works: negative result logged to TDS with mutation details
+[ ] Reject path works: negative result logged to aphexDATA with mutation details
 [ ] DAG has 1 new node with correct parent pointer
 ```
 
@@ -557,7 +557,7 @@ After 5 mutations, check:
 - Did the DAG grow by 5 nodes?
 - Were keepers registered and rejects logged?
 - Did NanoClaw avoid re-testing any mutation that was already discarded?
-  (TDS negative result deduplication)
+  (aphexDATA negative result deduplication)
 - Does the frontier look different now? (new leaves from keepers,
   original node may no longer be the top if a child beat it)
 - Did NanoClaw generate a summary of all 5 experiments?
@@ -567,7 +567,7 @@ After 5 mutations, check:
 [ ] 5 mutations complete sequentially
 [ ] At least 1 keeper registered OR all 5 rejects logged with reasons
 [ ] DAG has 5 new nodes
-[ ] No duplicate mutations tested (TDS dedup working)
+[ ] No duplicate mutations tested (aphexDATA dedup working)
 [ ] NanoClaw produced a summary: "5 tested, N kept, M reverted"
 ```
 
@@ -586,7 +586,7 @@ batch report. Check in every 30 minutes or wait for the final report.
 After completion, check:
 - Did all 21 variants get tested? (some may fail for data reasons — that's OK)
 - Were keepers batch-attested and registered?
-- Were rejects batch-logged to TDS?
+- Were rejects batch-logged to aphexDATA?
 - Did the swarm complete without crashing?
 - Does the report show a clear keeper/reject breakdown with Sharpe comparisons?
 - Did the registry grow?
@@ -595,7 +595,7 @@ After completion, check:
 ```
 [ ] autoresearch_batch completes 21 variants (3×7) in <40 min with 4 workers
 [ ] Keepers attested and registered to FreqHub automatically
-[ ] Rejects logged to TDS with parent hash, mutation, and Sharpe comparison
+[ ] Rejects logged to aphexDATA with parent hash, mutation, and Sharpe comparison
 [ ] Swarm completed without orchestrator crash
 [ ] Report shows keeper/reject breakdown
 [ ] Registry has new genomes from this batch
@@ -652,7 +652,7 @@ strategies correctly using Aphex scoring.**
 ### 4.1 Implement Aphex scoring
 
 From APHEX_SCORING_SPEC.md:
-- New scoring.py module in strategydna-core
+- New scoring.py module in aphexdna-core
 - Enrich attestation with new fields (win_rate, sortino, calmar,
   expectancy, cagr, avg_profit_pct, rejection_rate, per_window_sharpes)
 - Update sdna ingest_backtest to extract new fields from FreqTrade output
@@ -670,11 +670,11 @@ Rebuild the registry. Verify that:
 ### 4.3 Implement metric computation
 
 From the dashboard spec:
-- sdna metrics command (or Python script) that queries TDS + registry
+- sdna metrics command (or Python script) that queries aphexDATA + registry
 - Outputs JSON with north star, velocity, quality, discovery metrics
 - Weekly snapshot storage for trend computation
 
-### 4.4 Build the TDS dashboard
+### 4.4 Build the aphexDATA dashboard
 
 From the dashboard implementation plan:
 - research-data.ts service reading registry.json + snapshots + swarm reports
@@ -751,7 +751,7 @@ name = "rsi-explorer"
 agent = "claude"
 prompt = """
 You are a specialist in RSI-family strategies. You have access to
-FreqTrade MCP and StrategyDNA MCP tools. Your job:
+FreqTrade MCP and aphexDNA MCP tools. Your job:
 1. Receive a research direction from the leader
 2. Explore mutations in your specialty area
 3. Report keepers and rejects to the leader via inbox
@@ -787,7 +787,7 @@ task = "Optimize risk parameters on assigned frontier genomes"
 Create clawteam-bridge.ts in the NanoClaw repo:
 - When ClawTeam spawns a worker, boot a NanoClaw container
 - Inject the WolfClaw system prompt + worker-specific specialization
-- Connect MCP tools (FreqTrade, StrategyDNA, TDS)
+- Connect MCP tools (FreqTrade, aphexDNA, aphexDATA)
 - Wire ClawTeam inbox to NanoClaw's send_message capability
 - Handle worker lifecycle (idle, shutdown)
 
@@ -861,7 +861,7 @@ Expose the execution capabilities as a simple Python API that
 NanoClaw agents call directly:
 
 ```python
-from freqtrade_swarm import execute_sweep, execute_autoresearch
+from freqswarm import execute_sweep, execute_autoresearch
 
 # Direct call from agent (no job queue, no polling)
 results = await execute_sweep(
@@ -968,10 +968,10 @@ alerting, and graceful failure handling.**
 
 ```
 ClawTeam          — Brain (coordination, communication, strategy)
-NanoClaw          — Agent runtime (identity, tools, skills, TDS)
-FreqTrade-Swarm   — Muscle (parallel backtest execution library)
+NanoClaw          — Agent runtime (identity, tools, skills, aphexDATA)
+FreqSwarm   — Muscle (parallel backtest execution library)
 FreqHub           — Memory (genome registry, DAG, leaderboard)
-TDS               — Nervous system (events, metrics, dashboard)
+aphexDATA               — Nervous system (events, metrics, dashboard)
 ```
 
 Each component does one thing well. The boundaries are clean.
@@ -1003,7 +1003,7 @@ A research team could have:
 - A nanobot worker (lightweight, fast startup, good for simple
   fork-verify-keep/revert loops)
 
-Each worker connects to the same MCP servers (FreqTrade, StrategyDNA, TDS),
+Each worker connects to the same MCP servers (FreqTrade, aphexDNA, aphexDATA),
 reads from the same FreqHub registry, and reports to the same ClawTeam
 leader. The coordination protocol is the same — only the LLM inside
 the worker differs.
@@ -1023,8 +1023,8 @@ The NanoClaw-specific pieces that would need runtime-agnostic equivalents:
 ### What stays the same regardless of runtime
 
 - FreqTrade MCP server (same 57 tools, any agent can call them)
-- StrategyDNA MCP server (same 16 tools)
-- TDS MCP server (same 13 tools)
+- aphexDNA MCP server (same 16 tools)
+- aphexDATA MCP server (same 13 tools)
 - FreqHub registry (genomes, DAG, leaderboard — runtime-agnostic)
 - FreqSwarm execution library (called via MCP, doesn't care who's calling)
 - The genome format, attestation format, and scoring (Aphex)
@@ -1047,9 +1047,9 @@ workers across machines where different runtimes make sense.
 ### The architecture supports it already
 
 The key insight is that the five-component architecture (ClawTeam, NanoClaw,
-FreqSwarm, FreqHub, TDS) was designed with this in mind. NanoClaw is the
+FreqSwarm, FreqHub, aphexDATA) was designed with this in mind. NanoClaw is the
 agent runtime layer — it's the only component that knows which LLM is
-running inside. Everything below it (FreqSwarm, FreqHub, TDS) communicates
+running inside. Everything below it (FreqSwarm, FreqHub, aphexDATA) communicates
 via MCP, which is runtime-agnostic by design. Everything above it (ClawTeam)
 communicates via CLI commands, which are also runtime-agnostic.
 
@@ -1059,7 +1059,7 @@ a clean substitution, not a rewrite.
 
 ---
 
-## Future Goal: Harden the Genome Protocol (StrategyDNA v2)
+## Future Goal: Harden the Genome Protocol (aphexDNA v2)
 
 The GENOME.sdna format is the most important piece of the entire system.
 Every other component depends on it: the autoresearch loop mutates genomes,
@@ -1070,7 +1070,7 @@ revenue through genome ancestry.
 
 Today the genome format works — NanoClaw can create, fork, compile, and
 attest genomes. But it's underspecified. The format exists as an implicit
-contract between the StrategyDNA CLI and NanoClaw's system prompt. There's
+contract between the aphexDNA CLI and NanoClaw's system prompt. There's
 no formal spec that a third-party agent or compiler could implement from.
 
 This matters the moment you have:
@@ -1340,5 +1340,5 @@ broken. Hardening it is not optional. It's the foundation.
    Each worker you add is another failure surface.
 
 5. **Don't keep the swarm daemon running alongside ClawTeam.** Phase 5
-   explicitly removes the daemon and coordination code from freqtrade-swarm.
+   explicitly removes the daemon and coordination code from FreqSwarm.
    Running both is a recipe for conflicting job queues and resource fights.

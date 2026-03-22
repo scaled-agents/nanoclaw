@@ -6,8 +6,8 @@ No lineage array — just parent pointers forming a DAG.
 
 from __future__ import annotations
 
-from strategydna.canon import stamp
-from strategydna.models import GenomeDocument
+from aphexdna.canon import stamp
+from aphexdna.models import GenomeDocument
 
 
 def set_parent(child: GenomeDocument, parent: GenomeDocument) -> GenomeDocument:

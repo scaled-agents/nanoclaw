@@ -5,14 +5,14 @@ description: >
   for community genomes, viewing leaderboards, exploring the lineage DAG frontier,
   and fetching genomes by ID. Also provides local genome operations (init, fork, diff,
   compile, verify, attest) via the `sdna` CLI. Use this for registry discovery — use
-  the strategydna-mcp tools for the full attestation/registry lifecycle.
+  the aphexdna-mcp tools for the full attestation/registry lifecycle.
 ---
 
 # FreqHub — Published Strategy Registry CLI
 
 13 commands via the `sdna` CLI for the **Search → Fetch → Fork → Compile → Attest → Publish** workflow.
 
-## When to Use FreqHub vs StrategyDNA MCP
+## When to Use FreqHub vs aphexDNA MCP
 
 | Task | Tool |
 |------|------|
@@ -20,8 +20,8 @@ description: >
 | Fetch a genome by ID from the registry | `sdna get` (FreqHub) |
 | View the published leaderboard | `sdna leaderboard` (FreqHub) |
 | Explore DAG frontier (best unexplored branches) | `sdna frontier` (FreqHub) |
-| Create/fork/verify/compile genomes (full lifecycle) | strategydna MCP tools |
-| Attest backtest results + register locally | strategydna MCP tools |
+| Create/fork/verify/compile genomes (full lifecycle) | aphexdna MCP tools |
+| Attest backtest results + register locally | aphexdna MCP tools |
 
 ## Registry Discovery (4 commands)
 
@@ -139,7 +139,7 @@ The CLI merges all configured sources when searching. Remote registries are cach
 3. sdna fork base.sdna -m '{"risk.stop_loss.params.pct": 0.03}' -o child.sdna
 4. sdna compile child.sdna -o strategies/          # Compile to FreqTrade
 5. Use freqtrade tools to backtest the compiled strategy
-6. Use strategydna MCP tools to attest and register results
+6. Use aphexdna MCP tools to attest and register results
 7. sdna publish content/                                # Share on FreqHub registry
 ```
 

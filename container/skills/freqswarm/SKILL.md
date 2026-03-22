@@ -1,18 +1,18 @@
 ---
-name: freqtrade-swarm
+name: FreqSwarm
 description: >
   Use this skill for viewing overnight strategy research results from
-  freqtrade-swarm, triggering matrix sweep jobs (grid tests across
+  FreqSwarm, triggering matrix sweep jobs (grid tests across
   pairs × timeframes), and running autoresearch batch mutation testing.
   Read morning reports, leaderboards, run status, and archived results.
   Trigger new sweep runs, autoresearch batches, and poll their progress.
 ---
 
-# Freqtrade Swarm — Strategy Research, Matrix Sweep & Autoresearch
+# FreqSwarm — Strategy Research, Matrix Sweep & Autoresearch
 
 11 tools for viewing strategy screening results, triggering matrix sweep
 jobs, and running parallel autoresearch mutation batches via the
-freqtrade-swarm engine.
+FreqSwarm engine.
 
 ## Read-Only Tools (6)
 
@@ -80,13 +80,13 @@ freqtrade-swarm engine.
 2. Host runner stops the process on next poll
 
 **Run autoresearch mutation batch:**
-1. Query TDS for prior discards: `tds_query` with verb="discarded", object_type="genome_variant" → get genome IDs to skip
+1. Query aphexDATA for prior discards: `aphexdata_query` with verb="discarded", object_type="genome_variant" → get genome IDs to skip
 2. Build `AutoresearchSpec` JSON with seed genomes (from registry/frontier), mutations_per_genome, timerange
 3. `swarm_trigger_autoresearch` with spec, `workers`, `priority` → get `run_id`
 4. `swarm_poll_run` with `run_id` → check progress until completed
 5. `swarm_job_results` with `run_id` → get keepers/rejects with Sharpe comparison
 6. For each keeper: attest with `sdna_attest` → register in strategy registry
-7. For each reject: log to TDS with `tds_record` (verb="discarded")
+7. For each reject: log to aphexDATA with `aphexdata_record` (verb="discarded")
 
 **swarm_trigger_autoresearch parameters:**
 | Param | Type | Default | Description |
@@ -193,4 +193,4 @@ During a running sweep, `swarm_poll_run` returns live progress:
 - Autoresearch: `swarm_trigger_autoresearch` for parallel mutation testing of seed genomes
 - Use `swarm_poll_run` every 2 minutes to report progress to the user
 - Both job types write progress to the same status file format — polling is identical
-- After autoresearch completes: attest keepers with sdna tools, log rejects to TDS
+- After autoresearch completes: attest keepers with sdna tools, log rejects to aphexDATA

@@ -2,9 +2,9 @@
 
 ## Context
 
-We need a lightweight metric export to measure the autonomous research pipeline's health. Three deliverables: (1) a `sdna metrics` CLI command that queries TDS + registry and outputs structured JSON, (2) weekly snapshot storage for trend tracking, (3) NanoClaw reporting integration for "how's research going" and morning report.
+We need a lightweight metric export to measure the autonomous research pipeline's health. Three deliverables: (1) a `sdna metrics` CLI command that queries aphexDATA + registry and outputs structured JSON, (2) weekly snapshot storage for trend tracking, (3) NanoClaw reporting integration for "how's research going" and morning report.
 
-No web UI, no new services, no schema changes to TDS or registry.
+No web UI, no new services, no schema changes to aphexDATA or registry.
 
 ---
 
@@ -16,7 +16,7 @@ No web UI, no new services, no schema changes to TDS or registry.
 sdna metrics --json
   ├── reads: /workspace/group/dist/registry.json (local, built by `sdna build`)
   │   └── already contains: genomes[], dag{roots,leaves,edges,frontier}, leaderboard[], stats
-  ├── HTTP GET: TDS_URL/api/v1/events (filtered by verb/date)
+  ├── HTTP GET: APHEXDATA_URL/api/v1/events (filtered by verb/date)
   │   └── experiments = events where verb_id in ("attested","discarded","loop_complete")
   ├── reads: ~/.sdna/snapshots/metrics-YYYY-WW.json (previous week, if exists)
   └── outputs: JSON matching the requested schema
@@ -44,7 +44,7 @@ Key insight: `sdna build` (in `container/freqhub/cli/src/commands/build.js`) alr
 ### Inputs
 
 - `--registry <path>` — path to `registry.json` (default: `dist/registry.json`)
-- `--tds-url <url>` — TDS base URL (default: `$TDS_URL` env var)
+- `--aphexdata-url <url>` — aphexDATA base URL (default: `$APHEXDATA_URL` env var)
 - `--snapshot` — save to `~/.sdna/snapshots/metrics-YYYY-WW.json` after computing
 - `--json` — output raw JSON (default: formatted text summary)
 
@@ -56,12 +56,12 @@ export async function computeMetrics(opts) {
   const registry = JSON.parse(fs.readFileSync(registryPath))
   // Already has: genomes[], dag{roots, leaves, edges, frontier}, leaderboard[], stats
 
-  // 2. Query TDS for experiment events (last 7 days + previous 7 days)
-  const thisWeek = await queryTDS(tdsUrl, { verb_id: "attested", from: weekAgoISO, limit: 200 })
-  const thisWeekDiscards = await queryTDS(tdsUrl, { verb_id: "discarded", from: weekAgoISO, limit: 200 })
-  const lastWeek = await queryTDS(tdsUrl, { verb_id: "attested", from: twoWeeksAgoISO, to: weekAgoISO, limit: 200 })
-  const lastWeekDiscards = await queryTDS(tdsUrl, { verb_id: "discarded", from: twoWeeksAgoISO, to: weekAgoISO, limit: 200 })
-  const recentExperiments = await queryTDS(tdsUrl, { verb_id: "loop_complete", from: weekAgoISO, limit: 10 })
+  // 2. Query aphexDATA for experiment events (last 7 days + previous 7 days)
+  const thisWeek = await queryTDS(aphexdataUrl, { verb_id: "attested", from: weekAgoISO, limit: 200 })
+  const thisWeekDiscards = await queryTDS(aphexdataUrl, { verb_id: "discarded", from: weekAgoISO, limit: 200 })
+  const lastWeek = await queryTDS(aphexdataUrl, { verb_id: "attested", from: twoWeeksAgoISO, to: weekAgoISO, limit: 200 })
+  const lastWeekDiscards = await queryTDS(aphexdataUrl, { verb_id: "discarded", from: twoWeeksAgoISO, to: weekAgoISO, limit: 200 })
+  const recentExperiments = await queryTDS(aphexdataUrl, { verb_id: "loop_complete", from: weekAgoISO, limit: 10 })
 
   // 3. Compute velocity
   const experiments_this_week = thisWeek.length + thisWeekDiscards.length
@@ -85,7 +85,7 @@ export async function computeMetrics(opts) {
   const top5_sharpe_trend = prevSnapshot ? top5_avg_sharpe - prevSnapshot.quality.top5_avg_sharpe : null
   const hit_rate_trend = prevSnapshot ? hit_rate_this_week - prevSnapshot.velocity.hit_rate.this_week : null
 
-  // 7. Build recent_experiments from TDS events
+  // 7. Build recent_experiments from aphexDATA events
   // 8. Build experiment_history (hourly buckets, last 24h)
   // 9. North star: viable / hours_in_week
   // 10. Optionally save snapshot
@@ -95,11 +95,11 @@ export async function computeMetrics(opts) {
 }
 ```
 
-### TDS query helper
+### aphexDATA query helper
 
 ```js
 async function queryTDS(baseUrl, params) {
-  if (!baseUrl) return [] // graceful degradation if TDS not configured
+  if (!baseUrl) return [] // graceful degradation if aphexDATA not configured
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined) qs.set(k, String(v))
@@ -149,11 +149,11 @@ async function queryTDS(baseUrl, params) {
 
 **North star — `viable_strategies_per_human_hour`:**
 - viable = registry genomes with `tier` in ("viable", "strong", "exceptional")
-- human_hours = hours elapsed from first TDS event this week to now (capped at 168)
-- If no TDS events: use `null` and note gap
+- human_hours = hours elapsed from first aphexDATA event this week to now (capped at 168)
+- If no aphexDATA events: use `null` and note gap
 
 **Velocity — `experiments_total/viable`:**
-- `today`: filter TDS events where `occurred_at` >= start of today
+- `today`: filter aphexDATA events where `occurred_at` >= start of today
 - `this_week`: filter where `occurred_at` >= 7 days ago
 - `last_week`: filter where `occurred_at` between 14 and 7 days ago
 - `experiments_viable` = events with verb_id="attested"
@@ -200,7 +200,7 @@ async function queryTDS(baseUrl, params) {
 - Output: `{ "momentum": 5, "mean_reversion": 3, "trend_following": 2 }`
 
 **Recent experiments (last 20):**
-- Combine attested + discarded TDS events, sort by `occurred_at` desc, take 20
+- Combine attested + discarded aphexDATA events, sort by `occurred_at` desc, take 20
 - Each entry: `{ time, genome_name, parent_sharpe, result_sharpe, mutation, verdict }`
 - Extract from `result_data` fields (genome name from `object_id`, sharpe from result_data)
 
@@ -210,7 +210,7 @@ async function queryTDS(baseUrl, params) {
 
 ### Error handling
 
-- TDS not configured / unreachable: set all velocity fields to 0, note `"_gaps": ["TDS unavailable"]`
+- aphexDATA not configured / unreachable: set all velocity fields to 0, note `"_gaps": ["aphexDATA unavailable"]`
 - Registry not built: error message telling user to run `sdna build content/ -o dist/`
 - No previous snapshot: all trend fields `null`
 - <10 experiments: add `"_gaps": ["fewer than 10 experiments this week"]`
@@ -227,7 +227,7 @@ program
   .command('metrics')
   .description('Compute research pipeline health metrics')
   .option('-r, --registry <path>', 'path to registry.json', 'dist/registry.json')
-  .option('--tds-url <url>', 'TDS base URL (default: $TDS_URL)')
+  .option('--aphexdata-url <url>', 'aphexDATA base URL (default: $APHEXDATA_URL)')
   .option('--snapshot', 'save weekly snapshot to ~/.sdna/snapshots/')
   .option('--json', 'output as JSON')
   .action(async (opts) => {
@@ -235,7 +235,7 @@ program
     try {
       const result = await computeMetrics({
         registryPath: opts.registry,
-        tdsUrl: opts.tdsUrl || process.env.TDS_URL,
+        aphexdataUrl: opts.aphexdataUrl || process.env.APHEXDATA_URL,
         snapshot: opts.snapshot,
       });
       if (opts.json) {
@@ -259,7 +259,7 @@ Skill document that instructs the agent to:
 1. **Run** `sdna metrics --json -r /workspace/group/dist/registry.json --snapshot` via bash
 2. **Parse** the JSON output
 3. **Format** as WhatsApp-friendly text using the template below
-4. **Handle** gaps (empty registry, TDS offline)
+4. **Handle** gaps (empty registry, aphexDATA offline)
 
 ### Full Dashboard Template (for "how's research going")
 
@@ -339,17 +339,17 @@ _{date}_
 | Quality tiers | `container/freqhub/cli/src/commands/build.js:10-16` | Tiers already computed per genome in registry |
 | Registry stats | `build.js:128-138` | `registry.stats.total`, `.attested` already computed |
 | Leaderboard | `build.js:109-125` | Already sorted by WF Sharpe, stored in `registry.leaderboard` |
-| TDS HTTP pattern | `container/agent-runner/src/tds-mcp-stdio.ts:19-35` | Reuse URL + auth pattern for HTTP queries |
+| aphexDATA HTTP pattern | `container/agent-runner/src/aphexdata-mcp-stdio.ts:19-35` | Reuse URL + auth pattern for HTTP queries |
 | Commander.js CLI pattern | `container/freqhub/cli/bin/sdna.js` | Follow existing async import + action pattern |
 
 ---
 
 ## What We DON'T Change
 
-- TDS event schemas — query existing verbs (attested, discarded, loop_complete)
+- aphexDATA event schemas — query existing verbs (attested, discarded, loop_complete)
 - Registry format — read existing `registry.json` output from `sdna build`
-- StrategyDNA core — no changes to Python registry/scoring code
-- Morning report thread in freqtrade-swarm — modification is only in CLAUDE.md instructions
+- aphexDNA core — no changes to Python registry/scoring code
+- Morning report thread in FreqSwarm — modification is only in CLAUDE.md instructions
 - Container Dockerfile — `sdna` CLI is already available in container
 - MCP servers — no new tools needed
 
@@ -357,8 +357,8 @@ _{date}_
 
 ## Verification
 
-1. **Unit test metrics.js**: Mock `registry.json` with 10 genomes + mock TDS HTTP responses → verify all metrics compute correctly
-2. **Test with empty data**: Empty registry + no TDS → verify graceful degradation with `_gaps`
+1. **Unit test metrics.js**: Mock `registry.json` with 10 genomes + mock aphexDATA HTTP responses → verify all metrics compute correctly
+2. **Test with empty data**: Empty registry + no aphexDATA → verify graceful degradation with `_gaps`
 3. **Test snapshot**: Run with `--snapshot`, verify file created at `~/.sdna/snapshots/metrics-YYYY-WW.json`, run again and verify trends compute from previous snapshot
 4. **Integration in container**: Build registry (`sdna build content/ -o dist/`), run `sdna metrics --json`, verify output matches schema
 5. **End-to-end via WhatsApp**: Say "how's research going" → verify formatted dashboard appears with real numbers

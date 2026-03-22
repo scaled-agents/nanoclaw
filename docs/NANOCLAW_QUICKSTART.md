@@ -18,9 +18,9 @@ NanoClaw does the rest: validate → backtest → optimize → walk-forward → 
 
 ### Already built
 - [x] freqtrade-mcp — 50 tools wrapping FreqTrade CLI (strategy management, backtesting, hyperopt, walk-forward, live trading)
-- [x] strategydna-mcp — 16 tools for genome lifecycle (create, fork, compile, attest, registry)
-- [x] freqtrade-swarm — 6 read-only tools for overnight research reports (leaderboard, status, health)
-- [x] TDS — 13 tools for tamper-evident event recording (trades, signals, backtests)
+- [x] aphexdna-mcp — 16 tools for genome lifecycle (create, fork, compile, attest, registry)
+- [x] FreqSwarm — 6 read-only tools for overnight research reports (leaderboard, status, health)
+- [x] aphexDATA — 13 tools for tamper-evident event recording (trades, signals, backtests)
 - [x] NanoClaw — scheduling, messaging, orchestration, IPC
 - [x] Tool routing — MCP servers auto-discovered via `buildMcpServers()` in `container/agent-runner/src/index.ts`
 - [x] File handoff — strategies at `/workspace/group/user_data/strategies/`, configs at `/workspace/group/user_data/`
@@ -62,18 +62,18 @@ NanoClaw: [internally executes Workflow A]
 10. sdna_ingest_backtest("def456", results=...)
 11. sdna_attest("def456")
 12. sdna_registry_add("def456")
-13. tds_record_event(type="pipeline_complete", genome="def456")
+13. aphexdata_record_event(type="pipeline_complete", genome="def456")
 14. send_message(report)
 ```
 
 ---
 
-## How freqtrade-swarm fits in
+## How FreqSwarm fits in
 
-freqtrade-swarm is a **separate overnight process** — not part of the core analysis loop.
+FreqSwarm is a **separate overnight process** — not part of the core analysis loop.
 
 - **What it does:** Runs a YAML-defined research program overnight (seed ingestion → mutation → compilation → backtesting → ranking). Produces leaderboard reports.
-- **How it runs:** As its own Docker Compose stack (`integrations/freqtrade-swarm/docker-compose.yml`), triggered by cron/timer. NOT inside a NanoClaw agent session.
+- **How it runs:** As its own Docker Compose stack (`integrations/FreqSwarm/docker-compose.yml`), triggered by cron/timer. NOT inside a NanoClaw agent session.
 - **How NanoClaw sees it:** Reports are mounted read-only at `/workspace/extra/swarm-reports/`. The swarm MCP server (6 tools) lets agents read leaderboards, check run status, and browse archived runs.
 - **When you need it:** Only for Workflow D (Morning Report Digest). The core strategy analysis loop (Workflow A) doesn't need swarm at all.
 
@@ -90,7 +90,7 @@ tools, and chains them together.
 
 What you DO need:
 - The system prompt deployed (in `groups/global/CLAUDE.md`)
-- The MCP servers connected (freqtrade-mcp, strategydna-mcp, tds — all already wired)
+- The MCP servers connected (freqtrade-mcp, aphexdna-mcp, aphexdata — all already wired)
 - NanoClaw's messaging working (send_message)
 
 ### 2. "Should we build a system prompt?"
@@ -142,5 +142,5 @@ Each step builds on the last. Don't skip ahead.
 - Sends morning summary to chat
 
 ### Step 5: Overnight screening
-- freqtrade-swarm compose stack running nightly research programs
+- FreqSwarm compose stack running nightly research programs
 - Reports feed into Step 4 automatically

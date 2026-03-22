@@ -1,5 +1,5 @@
 /**
- * Stdio MCP Server for NanoClaw Freqtrade Swarm Integration
+ * Stdio MCP Server for NanoClaw FreqSwarm Integration
  * Provides 11 tools: 6 read-only for viewing strategy research reports,
  * 5 trigger tools for matrix sweeps, autoresearch batches, and job management.
  */
@@ -284,7 +284,7 @@ server.tool(
 
 server.tool(
   'swarm_trigger_run',
-  'Submit a matrix sweep or nightly run request. Writes a spec JSON to the request queue; the host-side runner picks it up and spawns the freqtrade-swarm process with the specified worker count. Returns a run_id for polling with swarm_poll_run.',
+  'Submit a matrix sweep or nightly run request. Writes a spec JSON to the request queue; the host-side runner picks it up and spawns the FreqSwarm process with the specified worker count. Returns a run_id for polling with swarm_poll_run.',
   {
     spec_json: z.string().describe('MatrixSweepSpec JSON string (genome, pairs, timeframes, n_walkforward_windows)'),
     run_type: z.string().optional().describe('Run type: "matrix_sweep" (default) or "nightly"'),

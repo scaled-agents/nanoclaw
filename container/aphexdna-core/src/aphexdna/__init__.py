@@ -1,9 +1,9 @@
-"""StrategyDNA Core -- declarative genome format for autonomous trading strategies.
+"""aphexDNA Core -- declarative genome format for autonomous trading strategies.
 
 FreqHub-compatible .sdna format: YAML frontmatter + JSON body.
 """
 
-from strategydna.attestation import (
+from aphexdna.attestation import (
     compute_attestation_hash,
     create_attestation,
     create_walkforward_attestation,
@@ -13,9 +13,9 @@ from strategydna.attestation import (
     verify_attestation,
     verify_attestation_chain,
 )
-from strategydna.canon import compute_hash, display_hash, from_sdna, stamp, to_sdna, verify
-from strategydna.compiler import compile_config, compile_genome
-from strategydna.models import (
+from aphexdna.canon import compute_hash, display_hash, from_sdna, stamp, to_sdna, verify
+from aphexdna.compiler import compile_config, compile_genome
+from aphexdna.models import (
     AttestationStatus,
     CompositeAndSignal,
     CompositeOrSignal,
@@ -34,14 +34,14 @@ from strategydna.models import (
     TakeProfit,
     ThresholdCrossSignal,
 )
-from strategydna.registry import (
+from aphexdna.registry import (
     LeaderboardEntry,
     Registry,
     RegistryEntry,
     RegistryIndex,
     RegistrySnapshot,
 )
-from strategydna.scoring import (
+from aphexdna.scoring import (
     RegistryScore,
     RegistryTier,
     compute_adoption_score,
@@ -51,7 +51,7 @@ from strategydna.scoring import (
     derive_tier,
     score_entry,
 )
-from strategydna.verification import (
+from aphexdna.verification import (
     Attestation,
     AttestationVerdict,
     BacktestMetrics,

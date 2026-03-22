@@ -1,4 +1,4 @@
-# StrategyDNA Core
+# aphexDNA Core
 
 A portable genome format for autonomous trading strategies.
 
@@ -6,7 +6,7 @@ A portable genome format for autonomous trading strategies.
 
 ## What is this?
 
-StrategyDNA defines a declarative, content-addressed JSON format (`.sdna`) for trading strategies. Strategies are described as data — not code — making them portable, diffable, and verifiable across any runtime.
+aphexDNA defines a declarative, content-addressed JSON format (`.sdna`) for trading strategies. Strategies are described as data — not code — making them portable, diffable, and verifiable across any runtime.
 
 ## Install
 
@@ -34,8 +34,8 @@ sdna diff strategy.sdna child.sdna --json-output
 ## Python API
 
 ```python
-from strategydna import GenomeDocument, GenomeMeta, stamp, to_sdna, from_sdna, verify
-from strategydna.models import StrategyArchetype
+from aphexdna import GenomeDocument, GenomeMeta, stamp, to_sdna, from_sdna, verify
+from aphexdna.models import StrategyArchetype
 
 # Create a genome
 doc = GenomeDocument(

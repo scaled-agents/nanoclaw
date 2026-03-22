@@ -10,7 +10,7 @@ const program = new Command();
 
 program
   .name('sdna')
-  .description('FreqHub — CLI for StrategyDNA genome management')
+  .description('FreqHub — CLI for aphexDNA genome management')
   .version('0.1.0');
 
 // --- init ---
@@ -282,7 +282,7 @@ program
   .command('metrics')
   .description('Compute research pipeline health metrics')
   .option('-r, --registry <path>', 'path to registry.json', 'dist/registry.json')
-  .option('--tds-url <url>', 'TDS base URL (default: $TDS_URL)')
+  .option('--aphexdata-url <url>', 'aphexDATA base URL (default: $APHEXDATA_URL)')
   .option('--snapshot', 'save weekly snapshot to ~/.sdna/snapshots/')
   .option('--json', 'output as JSON')
   .action(async (opts) => {
@@ -290,7 +290,7 @@ program
     try {
       const result = await computeMetrics({
         registryPath: opts.registry,
-        tdsUrl: opts.tdsUrl || process.env.TDS_URL,
+        aphexdataUrl: opts.aphexdataUrl || process.env.APHEXDATA_URL,
         snapshot: opts.snapshot,
       });
       if (opts.json) {

@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-19
 **Auditor:** Claude Code (Opus 4.6)
-**System:** FreqHub + NanoClaw + FreqSwarm + TDS
+**System:** FreqHub + NanoClaw + FreqSwarm + aphexDATA
 **Container image:** `nanoclaw-agent:latest` (3.68 GB)
 
 ---
@@ -23,7 +23,7 @@
 - [x] NanoClaw system prompt loaded — WORKING (8 workflows, decision rules, quality tiers)
 - [x] MCP tool routing — WORKING (all 5 servers configured)
 - [x] sdna attest + registry — WORKING (different interface than spec)
-- [ ] TDS logging — INSTALLED but requires TDS server running
+- [ ] aphexDATA logging — INSTALLED but requires aphexDATA server running
 - [x] FreqSwarm parallel loops — INSTALLED (read-only, host-triggered)
 
 **Verdict: The system can run a single-agent experiment loop today with two workarounds:**
@@ -145,7 +145,7 @@ All 4 templates compile to valid Python and pass FreqTrade backtests.
 
 ---
 
-## Section 3: StrategyDNA MCP Tools
+## Section 3: aphexDNA MCP Tools
 
 **All 16 tools registered and operational.**
 
@@ -190,8 +190,8 @@ All 4 templates compile to valid Python and pass FreqTrade backtests.
 |---------|--------|-------|
 | Identity | EXISTS | "You are WolfClaw, an autonomous trading strategy analyst." |
 | freqtrade-mcp tools | EXISTS | "50 tools" referenced + full skill file |
-| strategydna-mcp tools | EXISTS | "16 tools" referenced + full skill file |
-| tds tools | EXISTS | "13 tools" referenced + full skill file |
+| aphexdna-mcp tools | EXISTS | "16 tools" referenced + full skill file |
+| aphexdata tools | EXISTS | "13 tools" referenced + full skill file |
 | nanoclaw tools | PARTIAL | `send_message` and `schedule_task` mentioned in prose but no formal tool table |
 | Workflow A (Strategy Analysis) | EXISTS | Full 7-step pipeline with sub-steps |
 | Workflow B (Conversational R&D) | EXISTS | template → genome → compile → backtest flow |
@@ -221,7 +221,7 @@ Workflow F (Neighborhood Search) and Workflow G (Batch Exploration) cover parts 
 5. Run walk-forward validation (freqtrade_run_walk_forward)
 6. Compare walk-forward Sharpe to parent's Sharpe
 7. If improved: attest and register
-8. If not improved: discard, log negative result to TDS
+8. If not improved: discard, log negative result to aphexDATA
 9. Return to step 1 with updated frontier
 ```
 
@@ -237,8 +237,8 @@ No mention of time budgets, fixed time limits per experiment, or comparable-resu
 |-----------|--------|
 | MCP server (`swarm-mcp-stdio.ts`) | INSTALLED (200 lines, 6 tools) |
 | Agent-runner config | CORRECT (conditional on report dir) |
-| Skill docs | COMPLETE (`freqtrade-swarm/SKILL.md`) |
-| Docker Compose | EXISTS (`integrations/freqtrade-swarm/docker-compose.yml`) |
+| Skill docs | COMPLETE (`FreqSwarm/SKILL.md`) |
+| Docker Compose | EXISTS (`integrations/FreqSwarm/docker-compose.yml`) |
 | Volume mount | CORRECT (read-only) |
 | Env forwarding | CORRECT (`SWARM_REPORT_DIR`) |
 | Global prompt integration | EXISTS (Workflow D: Morning Report) |
@@ -249,21 +249,21 @@ No mention of time budgets, fixed time limits per experiment, or comparable-resu
 
 ---
 
-## Section 6: TDS Integration — INSTALLED AND WORKING
+## Section 6: aphexDATA Integration — INSTALLED AND WORKING
 
 | Component | Status |
 |-----------|--------|
-| MCP server (`tds-mcp-stdio.ts`) | INSTALLED (377 lines, 13 tools) |
-| Agent-runner config | CORRECT (conditional on `TDS_URL`) |
-| Skill docs | COMPLETE (`tds/SKILL.md`) |
-| Env forwarding | CORRECT (`TDS_URL`, `TDS_API_KEY`, `TDS_AGENT_ID`) |
+| MCP server (`aphexdata-mcp-stdio.ts`) | INSTALLED (377 lines, 13 tools) |
+| Agent-runner config | CORRECT (conditional on `APHEXDATA_URL`) |
+| Skill docs | COMPLETE (`aphexdata/SKILL.md`) |
+| Env forwarding | CORRECT (`APHEXDATA_URL`, `APHEXDATA_API_KEY`, `APHEXDATA_AGENT_ID`) |
 | `.env.example` | CORRECT |
 
 **Tools available:** Agent management (3), Event recording (5), Competition (3), System (2)
 
-**Note:** `tds_record_event` supports arbitrary `verb_id` values including `discarded` for negative results. There is no dedicated `experiment_discard` tool — the generic event tool handles it.
+**Note:** `aphexdata_record_event` supports arbitrary `verb_id` values including `discarded` for negative results. There is no dedicated `experiment_discard` tool — the generic event tool handles it.
 
-**Operational dependency:** Requires a running TDS server instance and `TDS_URL` set in `.env`.
+**Operational dependency:** Requires a running aphexDATA server instance and `APHEXDATA_URL` set in `.env`.
 
 ---
 
@@ -284,7 +284,7 @@ No mention of time budgets, fixed time limits per experiment, or comparable-resu
 | Ingest result | `sdna_ingest_backtest` | AVAILABLE (MCP) |
 | Attest | `sdna_attest` | AVAILABLE (MCP takes backtest_result string) |
 | Register | `sdna_registry_add` | AVAILABLE (MCP) |
-| Log events | `tds_record_event` | AVAILABLE (if TDS running) |
+| Log events | `aphexdata_record_event` | AVAILABLE (if aphexDATA running) |
 | Report | `send_message` | AVAILABLE |
 
 ### 7.2 Fork and Compare — CAN RUN
@@ -308,15 +308,15 @@ The autoresearch loop requires a system prompt workflow that doesn't exist yet. 
 | Container CWD | `WORKDIR` | `/workspace/group` | YES |
 | Volume mount | Group workspace | `/workspace/group` | YES |
 | SKILL.md | Strategy dir | `/workspace/group/user_data/strategies/` | YES |
-| `REGISTRY_PATH` env | strategydna MCP | `/workspace/group/registry` | **NO** — MCP tools default to `.sdna-registry` |
+| `REGISTRY_PATH` env | aphexdna MCP | `/workspace/group/registry` | **NO** — MCP tools default to `.sdna-registry` |
 
 ### 8.2 MCP Server Routing — PASS
 
 | Tool prefix | MCP server | Loading | Status |
 |-------------|-----------|---------|--------|
 | `freqtrade_*` | freqtrade | Always | CORRECT |
-| `sdna_*` | strategydna | Always | CORRECT |
-| `tds_*` | tds | Conditional (`TDS_URL`) | CORRECT |
+| `sdna_*` | aphexdna | Always | CORRECT |
+| `aphexdata_*` | aphexdata | Conditional (`APHEXDATA_URL`) | CORRECT |
 | `mcp__nanoclaw__*` | nanoclaw | Always | CORRECT |
 | `mcp__swarm__*` | swarm | Conditional (dir exists) | CORRECT |
 
@@ -360,13 +360,13 @@ All 5 servers in `allowedTools` with wildcard patterns.
 | Component | Status | Tools |
 |-----------|--------|-------|
 | FreqHub CLI (`sdna`) | 11/12 commands working | init, fork, diff, compile, verify (hash), attest, search, get, build, leaderboard, frontier, templates |
-| StrategyDNA MCP | All 16 tools registered and operational | Full genome lifecycle |
+| aphexDNA MCP | All 16 tools registered and operational | Full genome lifecycle |
 | FreqTrade MCP | All 55+ tools available | Introspection, backtesting, hyperopt, walk-forward, data, live trading |
-| TDS MCP | All 13 tools implemented | Agent mgmt, events, competitions, system |
+| aphexDATA MCP | All 13 tools implemented | Agent mgmt, events, competitions, system |
 | FreqSwarm MCP | All 6 read-only tools working | Reports, status, archive, health |
 | NanoClaw agent-runner | 5 MCP servers configured | Correct conditional loading, env forwarding, volume mounts |
 | System prompt | 8 workflows + decision rules + quality tiers | Identity, tools, workflows A-H, report format, anti-patterns |
-| Container build | FreqTrade 2026.2, TA-Lib, `ta`, strategydna, FreqHub | All dependencies installed |
+| Container build | FreqTrade 2026.2, TA-Lib, `ta`, aphexdna, FreqHub | All dependencies installed |
 | Hash integrity | SHA-256, deterministic, canonical JSON | Verified in tests |
 | Fork lineage | Parent-child DAG tracking | Verified in tests |
 | Compile pipeline | .sdna → .py + config.json | Verified with futures backtest |

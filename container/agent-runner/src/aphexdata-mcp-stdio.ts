@@ -1,35 +1,35 @@
 /**
- * Stdio MCP Server for NanoClaw Trading Data Store (TDS)
+ * Stdio MCP Server for NanoClaw aphexDATA (aphexDATA)
  * Standalone process providing 13 tools for recording paper trades,
- * signals, and events to a TDS instance via its REST API.
+ * signals, and events to a aphexDATA instance via its REST API.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-const TDS_URL = (process.env.TDS_URL || '').replace(/\/+$/, '');
-const TDS_API_KEY = process.env.TDS_API_KEY || '';
-const TDS_AGENT_ID = process.env.TDS_AGENT_ID || '';
+const APHEXDATA_URL = (process.env.APHEXDATA_URL || '').replace(/\/+$/, '');
+const APHEXDATA_API_KEY = process.env.APHEXDATA_API_KEY || '';
+const APHEXDATA_AGENT_ID = process.env.APHEXDATA_AGENT_ID || '';
 
 function log(message: string): void {
-  console.error(`[TDS] ${message}`);
+  console.error(`[aphexDATA] ${message}`);
 }
 
-async function tdsFetch(path: string, options?: RequestInit): Promise<any> {
-  if (!TDS_URL) throw new Error('TDS_URL not configured');
-  const url = `${TDS_URL}${path}`;
+async function aphexdataFetch(path: string, options?: RequestInit): Promise<any> {
+  if (!APHEXDATA_URL) throw new Error('APHEXDATA_URL not configured');
+  const url = `${APHEXDATA_URL}${path}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (TDS_API_KEY) headers['Authorization'] = `Bearer ${TDS_API_KEY}`;
+  if (APHEXDATA_API_KEY) headers['Authorization'] = `Bearer ${APHEXDATA_API_KEY}`;
   const res = await fetch(url, {
     ...options,
     headers: { ...headers, ...(options?.headers as Record<string, string>) },
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`TDS ${res.status}: ${body}`);
+    throw new Error(`aphexDATA ${res.status}: ${body}`);
   }
   return res.json();
 }
@@ -44,18 +44,18 @@ function err(message: string) {
 
 // Resolve agent_id: use explicit param, fall back to env, or error
 function resolveAgentId(explicit?: string): string {
-  const id = explicit || TDS_AGENT_ID;
-  if (!id) throw new Error('agent_id required — set TDS_AGENT_ID in .env or pass explicitly');
+  const id = explicit || APHEXDATA_AGENT_ID;
+  if (!id) throw new Error('agent_id required — set APHEXDATA_AGENT_ID in .env or pass explicitly');
   return id;
 }
 
-const server = new McpServer({ name: 'tds', version: '1.0.0' });
+const server = new McpServer({ name: 'aphexdata', version: '1.0.0' });
 
 // ─── Agent Management ────────────────────────────────────────────────
 
 server.tool(
-  'tds_register_agent',
-  'Register a new agent in the TDS. Returns the agent record with its UUID.',
+  'aphexdata_register_agent',
+  'Register a new agent in the aphexDATA. Returns the agent record with its UUID.',
   {
     external_id: z.string().describe('Unique external identifier for the agent'),
     name: z.string().describe('Display name for the agent'),
@@ -64,7 +64,7 @@ server.tool(
   },
   async (args) => {
     try {
-      const data = await tdsFetch('/api/v1/agents', {
+      const data = await aphexdataFetch('/api/v1/agents', {
         method: 'POST',
         body: JSON.stringify(args),
       });
@@ -77,12 +77,12 @@ server.tool(
 );
 
 server.tool(
-  'tds_list_agents',
-  'List all registered agents in the TDS.',
+  'aphexdata_list_agents',
+  'List all registered agents in the aphexDATA.',
   {},
   async () => {
     try {
-      const data = await tdsFetch('/api/v1/agents');
+      const data = await aphexdataFetch('/api/v1/agents');
       return ok(data);
     } catch (e) {
       return err(`Failed to list agents: ${(e as Error).message}`);
@@ -91,14 +91,14 @@ server.tool(
 );
 
 server.tool(
-  'tds_get_agent',
+  'aphexdata_get_agent',
   'Get details of a specific agent by ID.',
   {
     agent_id: z.string().describe('Agent UUID'),
   },
   async (args) => {
     try {
-      const data = await tdsFetch(`/api/v1/agents/${args.agent_id}`);
+      const data = await aphexdataFetch(`/api/v1/agents/${args.agent_id}`);
       return ok(data);
     } catch (e) {
       return err(`Failed to get agent: ${(e as Error).message}`);
@@ -109,14 +109,14 @@ server.tool(
 // ─── Event Recording ─────────────────────────────────────────────────
 
 server.tool(
-  'tds_record_event',
-  `Record a generic event in the TDS. Use tds_record_trade or tds_record_signal for convenience.
+  'aphexdata_record_event',
+  `Record a generic event in the aphexDATA. Use aphexdata_record_trade or aphexdata_record_signal for convenience.
 
 verb_category: analysis | action | adjustment | communication | execution | monitoring
 object_type: strategy | bot | trade | pair | portfolio | regime | report | signal | backtest | episode | config
 trust_level: agent_asserted (default for agents)`,
   {
-    agent_id: z.string().optional().describe('Agent UUID (defaults to TDS_AGENT_ID env var)'),
+    agent_id: z.string().optional().describe('Agent UUID (defaults to APHEXDATA_AGENT_ID env var)'),
     competition_id: z.string().optional().describe('Competition UUID'),
     verb_id: z.string().describe('Action verb (e.g. "opened", "closed", "generated")'),
     verb_category: z.enum(['analysis', 'action', 'adjustment', 'communication', 'execution', 'monitoring']),
@@ -133,7 +133,7 @@ trust_level: agent_asserted (default for agents)`,
         agent_id: resolveAgentId(args.agent_id),
         trust_level: 'agent_asserted',
       };
-      const data = await tdsFetch('/api/v1/events', {
+      const data = await aphexdataFetch('/api/v1/events', {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -146,7 +146,7 @@ trust_level: agent_asserted (default for agents)`,
 );
 
 server.tool(
-  'tds_record_trade',
+  'aphexdata_record_trade',
   'Record a paper trade event. Convenience wrapper that pre-fills verb_category=execution and object_type=trade.',
   {
     pair: z.string().describe('Trading pair (e.g. "BTC/USDT")'),
@@ -158,7 +158,7 @@ server.tool(
     profit_pct: z.number().optional().describe('Profit percentage (for closed trades)'),
     strategy: z.string().optional().describe('Strategy name'),
     timeframe: z.string().optional().describe('Timeframe (e.g. "5m", "1h")'),
-    agent_id: z.string().optional().describe('Agent UUID (defaults to TDS_AGENT_ID)'),
+    agent_id: z.string().optional().describe('Agent UUID (defaults to APHEXDATA_AGENT_ID)'),
     competition_id: z.string().optional().describe('Competition UUID'),
     context: z.record(z.string(), z.unknown()).optional().describe('Additional context'),
   },
@@ -184,7 +184,7 @@ server.tool(
         context: args.context || {},
       };
 
-      const data = await tdsFetch('/api/v1/events', {
+      const data = await aphexdataFetch('/api/v1/events', {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -197,7 +197,7 @@ server.tool(
 );
 
 server.tool(
-  'tds_record_signal',
+  'aphexdata_record_signal',
   'Record a trading signal event. Convenience wrapper that pre-fills verb_category=analysis and object_type=signal.',
   {
     pair: z.string().describe('Trading pair (e.g. "BTC/USDT")'),
@@ -205,7 +205,7 @@ server.tool(
     confidence: z.number().min(0).max(1).optional().describe('Confidence score (0-1)'),
     strategy: z.string().optional().describe('Strategy that generated the signal'),
     indicators: z.record(z.string(), z.unknown()).optional().describe('Indicator values that triggered the signal'),
-    agent_id: z.string().optional().describe('Agent UUID (defaults to TDS_AGENT_ID)'),
+    agent_id: z.string().optional().describe('Agent UUID (defaults to APHEXDATA_AGENT_ID)'),
     competition_id: z.string().optional().describe('Competition UUID'),
     context: z.record(z.string(), z.unknown()).optional().describe('Additional context'),
   },
@@ -228,7 +228,7 @@ server.tool(
         context: args.context || {},
       };
 
-      const data = await tdsFetch('/api/v1/events', {
+      const data = await aphexdataFetch('/api/v1/events', {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -241,8 +241,8 @@ server.tool(
 );
 
 server.tool(
-  'tds_query_events',
-  'Query events from the TDS with optional filters.',
+  'aphexdata_query_events',
+  'Query events from the aphexDATA with optional filters.',
   {
     agent_id: z.string().optional().describe('Filter by agent UUID'),
     competition_id: z.string().optional().describe('Filter by competition UUID'),
@@ -260,7 +260,7 @@ server.tool(
         if (val !== undefined) params.set(key, String(val));
       }
       const qs = params.toString();
-      const data = await tdsFetch(`/api/v1/events${qs ? `?${qs}` : ''}`);
+      const data = await aphexdataFetch(`/api/v1/events${qs ? `?${qs}` : ''}`);
       return ok(data);
     } catch (e) {
       return err(`Failed to query events: ${(e as Error).message}`);
@@ -269,14 +269,14 @@ server.tool(
 );
 
 server.tool(
-  'tds_get_event',
+  'aphexdata_get_event',
   'Get a specific event by ID.',
   {
     event_id: z.string().describe('Event UUID'),
   },
   async (args) => {
     try {
-      const data = await tdsFetch(`/api/v1/events/${args.event_id}`);
+      const data = await aphexdataFetch(`/api/v1/events/${args.event_id}`);
       return ok(data);
     } catch (e) {
       return err(`Failed to get event: ${(e as Error).message}`);
@@ -287,12 +287,12 @@ server.tool(
 // ─── Competition ─────────────────────────────────────────────────────
 
 server.tool(
-  'tds_list_competitions',
-  'List all competitions in the TDS.',
+  'aphexdata_list_competitions',
+  'List all competitions in the aphexDATA.',
   {},
   async () => {
     try {
-      const data = await tdsFetch('/api/v1/competitions');
+      const data = await aphexdataFetch('/api/v1/competitions');
       return ok(data);
     } catch (e) {
       return err(`Failed to list competitions: ${(e as Error).message}`);
@@ -301,14 +301,14 @@ server.tool(
 );
 
 server.tool(
-  'tds_get_competition',
+  'aphexdata_get_competition',
   'Get details of a specific competition.',
   {
     competition_id: z.string().describe('Competition UUID'),
   },
   async (args) => {
     try {
-      const data = await tdsFetch(`/api/v1/competitions/${args.competition_id}`);
+      const data = await aphexdataFetch(`/api/v1/competitions/${args.competition_id}`);
       return ok(data);
     } catch (e) {
       return err(`Failed to get competition: ${(e as Error).message}`);
@@ -317,14 +317,14 @@ server.tool(
 );
 
 server.tool(
-  'tds_get_standings',
+  'aphexdata_get_standings',
   'Get competition standings (leaderboard).',
   {
     competition_id: z.string().describe('Competition UUID'),
   },
   async (args) => {
     try {
-      const data = await tdsFetch(`/api/v1/competitions/${args.competition_id}/standings`);
+      const data = await aphexdataFetch(`/api/v1/competitions/${args.competition_id}/standings`);
       return ok(data);
     } catch (e) {
       return err(`Failed to get standings: ${(e as Error).message}`);
@@ -335,21 +335,21 @@ server.tool(
 // ─── System ──────────────────────────────────────────────────────────
 
 server.tool(
-  'tds_health',
-  'Check TDS server health and database connectivity.',
+  'aphexdata_health',
+  'Check aphexDATA server health and database connectivity.',
   {},
   async () => {
     try {
-      const data = await tdsFetch('/health');
+      const data = await aphexdataFetch('/health');
       return ok(data);
     } catch (e) {
-      return err(`TDS health check failed: ${(e as Error).message}`);
+      return err(`aphexDATA health check failed: ${(e as Error).message}`);
     }
   },
 );
 
 server.tool(
-  'tds_verify_integrity',
+  'aphexdata_verify_integrity',
   'Verify the hash chain integrity of recorded events.',
   {
     limit: z.number().optional().describe('Number of events to verify (default 1000, max 10000)'),
@@ -361,7 +361,7 @@ server.tool(
       if (args.limit !== undefined) params.set('limit', String(args.limit));
       if (args.offset !== undefined) params.set('offset', String(args.offset));
       const qs = params.toString();
-      const data = await tdsFetch(`/api/v1/integrity/verify${qs ? `?${qs}` : ''}`);
+      const data = await aphexdataFetch(`/api/v1/integrity/verify${qs ? `?${qs}` : ''}`);
       return ok(data);
     } catch (e) {
       return err(`Integrity verification failed: ${(e as Error).message}`);
@@ -371,6 +371,6 @@ server.tool(
 
 // ─── Start ───────────────────────────────────────────────────────────
 
-log(`Starting TDS MCP server (url=${TDS_URL || 'NOT SET'}, agent=${TDS_AGENT_ID || 'NOT SET'})`);
+log(`Starting aphexDATA MCP server (url=${APHEXDATA_URL || 'NOT SET'}, agent=${APHEXDATA_AGENT_ID || 'NOT SET'})`);
 const transport = new StdioServerTransport();
 await server.connect(transport);

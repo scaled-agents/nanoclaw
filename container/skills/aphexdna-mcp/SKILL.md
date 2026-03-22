@@ -1,12 +1,12 @@
 ---
-name: strategydna-mcp
+name: aphexdna-mcp
 description: >
-  Use this skill for the full StrategyDNA lifecycle: creating, verifying, forking,
+  Use this skill for the full aphexDNA lifecycle: creating, verifying, forking,
   compiling .sdna genomes, attesting backtest results, and managing the strategy
-  registry. Always use the strategydna MCP tools rather than writing genome YAML/JSON manually.
+  registry. Always use the aphexdna MCP tools rather than writing genome YAML/JSON manually.
 ---
 
-# StrategyDNA — Genome Management Toolkit
+# aphexDNA — Genome Management Toolkit
 
 16 tools for the full **Create → Verify → Fork → Compile → Attest → Register** lifecycle.
 
@@ -44,47 +44,47 @@ parent: null
 
 | Tool | What it does |
 |------|-------------|
-| `strategydna_sdna_init` | Create a new .sdna genome from a template (blank, rsi_basic, ema_crossover, macd_regime, supertrend_filtered) |
-| `strategydna_sdna_fork` | Fork a genome with optional body mutations (e.g., risk.stop_loss.params.pct=0.08) |
-| `strategydna_sdna_verify` | Verify the body-only SHA-256 content hash integrity of a genome |
-| `strategydna_sdna_inspect` | Parse and display genome frontmatter, signal slots, risk methods, and tags |
+| `aphexdna_sdna_init` | Create a new .sdna genome from a template (blank, rsi_basic, ema_crossover, macd_regime, supertrend_filtered) |
+| `aphexdna_sdna_fork` | Fork a genome with optional body mutations (e.g., risk.stop_loss.params.pct=0.08) |
+| `aphexdna_sdna_verify` | Verify the body-only SHA-256 content hash integrity of a genome |
+| `aphexdna_sdna_inspect` | Parse and display genome frontmatter, signal slots, risk methods, and tags |
 
 ## Diff & Comparison (1 tool)
 
 | Tool | What it does |
 |------|-------------|
-| `strategydna_sdna_diff` | Compute body-only semantic diff between two genomes (frontmatter excluded) |
+| `aphexdna_sdna_diff` | Compute body-only semantic diff between two genomes (frontmatter excluded) |
 
 ## Compilation (2 tools)
 
 | Tool | What it does |
 |------|-------------|
-| `strategydna_sdna_compile` | Compile an .sdna genome to a FreqTrade IStrategy Python file |
-| `strategydna_sdna_compile_config` | Generate a FreqTrade config.json from genome market/risk settings |
+| `aphexdna_sdna_compile` | Compile an .sdna genome to a FreqTrade IStrategy Python file |
+| `aphexdna_sdna_compile_config` | Generate a FreqTrade config.json from genome market/risk settings |
 
 ## Discovery (1 tool)
 
 | Tool | What it does |
 |------|-------------|
-| `strategydna_sdna_list_templates` | List available genome templates with tags and timeframe |
+| `aphexdna_sdna_list_templates` | List available genome templates with tags and timeframe |
 
 ## Attestation (3 tools)
 
 | Tool | What it does |
 |------|-------------|
-| `strategydna_sdna_attest` | Create an attestation from a genome + FreqTrade backtest result. Links genome hash to performance metrics with an optional operator ID |
-| `strategydna_sdna_verify_attestation` | Verify attestation integrity; optionally cross-check the genome hash matches |
-| `strategydna_sdna_ingest_backtest` | Parse a FreqTrade backtest result JSON and extract metrics, dataset info, and environment |
+| `aphexdna_sdna_attest` | Create an attestation from a genome + FreqTrade backtest result. Links genome hash to performance metrics with an optional operator ID |
+| `aphexdna_sdna_verify_attestation` | Verify attestation integrity; optionally cross-check the genome hash matches |
+| `aphexdna_sdna_ingest_backtest` | Parse a FreqTrade backtest result JSON and extract metrics, dataset info, and environment |
 
 ## Registry (5 tools)
 
 | Tool | What it does |
 |------|-------------|
-| `strategydna_sdna_registry_add` | Register a genome (optionally with attestation) — computes composite score and tier |
-| `strategydna_sdna_registry_search` | Search by pairs, timeframe, tier, tags, or author |
-| `strategydna_sdna_registry_leaderboard` | Ranked leaderboard sorted by composite score (or any score field) |
-| `strategydna_sdna_registry_show` | Look up a single registry entry by genome hash |
-| `strategydna_sdna_registry_export` | Export the full registry as a TradeV-importable snapshot |
+| `aphexdna_sdna_registry_add` | Register a genome (optionally with attestation) — computes composite score and tier |
+| `aphexdna_sdna_registry_search` | Search by pairs, timeframe, tier, tags, or author |
+| `aphexdna_sdna_registry_leaderboard` | Ranked leaderboard sorted by composite score (or any score field) |
+| `aphexdna_sdna_registry_show` | Look up a single registry entry by genome hash |
+| `aphexdna_sdna_registry_export` | Export the full registry as a TradeV-importable snapshot |
 
 ## Usage Examples
 

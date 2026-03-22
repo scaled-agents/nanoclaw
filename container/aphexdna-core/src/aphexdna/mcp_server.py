@@ -1,4 +1,4 @@
-"""FastMCP server exposing StrategyDNA operations as MCP tools."""
+"""FastMCP server exposing aphexDNA operations as MCP tools."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ import os
 from pathlib import Path
 from typing import Any
 
-from strategydna.canon import compute_hash, display_hash, from_sdna, stamp, to_sdna, verify
-from strategydna.compiler import compile_config, compile_genome
-from strategydna.diff import diff
-from strategydna.lineage import set_parent
-from strategydna.models import Frontmatter, GenomeBody, GenomeDocument
-from strategydna.templates import TEMPLATES
+from aphexdna.canon import compute_hash, display_hash, from_sdna, stamp, to_sdna, verify
+from aphexdna.compiler import compile_config, compile_genome
+from aphexdna.diff import diff
+from aphexdna.lineage import set_parent
+from aphexdna.models import Frontmatter, GenomeBody, GenomeDocument
+from aphexdna.templates import TEMPLATES
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -43,13 +43,13 @@ def _create_server() -> Any:
     if FastMCP is None:
         raise ImportError(
             "MCP support requires the 'mcp' package. "
-            "Install with: pip install strategydna-core[mcp]"
+            "Install with: pip install aphexdna-core[mcp]"
         )
 
     mcp = FastMCP(
-        "StrategyDNA",
+        "aphexDNA",
         instructions=(
-            "StrategyDNA MCP server for managing declarative trading strategy genomes. "
+            "aphexDNA MCP server for managing declarative trading strategy genomes. "
             "Genomes use the FreqHub .sdna format: YAML frontmatter + JSON body. "
             "Use these tools to create, verify, diff, fork, "
             "and compile genomes into executable FreqTrade strategies."
@@ -281,11 +281,11 @@ def _create_server() -> Any:
             backtest_result: The full JSON content of a FreqTrade backtest-result
             attested_by: Agent/operator identifier (optional)
         """
-        from strategydna.attestation import (
+        from aphexdna.attestation import (
             create_attestation,
             to_attestation_json,
         )
-        from strategydna.backtest_ingest import extract_environment, parse_freqtrade_result
+        from aphexdna.backtest_ingest import extract_environment, parse_freqtrade_result
 
         try:
             genome_doc = stamp(from_sdna(sdna_content))
@@ -319,11 +319,11 @@ def _create_server() -> Any:
             attestation_content: The full JSON of the attestation file
             sdna_content: Optional genome content to cross-check genome_hash
         """
-        from strategydna.attestation import (
+        from aphexdna.attestation import (
             from_attestation_json,
             verify_attestation_chain,
         )
-        from strategydna.attestation import (
+        from aphexdna.attestation import (
             verify_attestation as _verify_att,
         )
 
@@ -355,7 +355,7 @@ def _create_server() -> Any:
         Args:
             backtest_result: The full JSON of a FreqTrade backtest-result file
         """
-        from strategydna.backtest_ingest import extract_environment, parse_freqtrade_result
+        from aphexdna.backtest_ingest import extract_environment, parse_freqtrade_result
 
         try:
             bt_data = json.loads(backtest_result)
@@ -385,8 +385,8 @@ def _create_server() -> Any:
             registry_path: Path to the registry directory
             registered_by: Operator identifier
         """
-        from strategydna.attestation import from_attestation_json
-        from strategydna.registry import Registry
+        from aphexdna.attestation import from_attestation_json
+        from aphexdna.registry import Registry
 
         try:
             _validate_registry_path(registry_path)
@@ -427,7 +427,7 @@ def _create_server() -> Any:
             limit: Max results to return
             registry_path: Path to the registry directory
         """
-        from strategydna.registry import Registry
+        from aphexdna.registry import Registry
 
         try:
             _validate_registry_path(registry_path)
@@ -463,7 +463,7 @@ def _create_server() -> Any:
             limit: Max entries to return
             registry_path: Path to the registry directory
         """
-        from strategydna.registry import Registry
+        from aphexdna.registry import Registry
 
         try:
             _validate_registry_path(registry_path)
@@ -489,7 +489,7 @@ def _create_server() -> Any:
             genome_hash: The display hash (sha256:xxxx) of the genome
             registry_path: Path to the registry directory
         """
-        from strategydna.registry import Registry
+        from aphexdna.registry import Registry
 
         try:
             _validate_registry_path(registry_path)
@@ -512,7 +512,7 @@ def _create_server() -> Any:
         Args:
             registry_path: Path to the registry directory
         """
-        from strategydna.registry import Registry
+        from aphexdna.registry import Registry
 
         try:
             _validate_registry_path(registry_path)
@@ -532,6 +532,6 @@ def main() -> None:
     server.run(transport="stdio")
 
 
-# Module-level server instance for `python -m strategydna`
+# Module-level server instance for `python -m aphexdna`
 if FastMCP is not None:
     mcp = _create_server()

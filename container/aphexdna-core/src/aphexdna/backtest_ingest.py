@@ -1,4 +1,4 @@
-"""Parse FreqTrade backtest result bundles into StrategyDNA verification models."""
+"""Parse FreqTrade backtest result bundles into aphexDNA verification models."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from strategydna.verification import (
+from aphexdna.verification import (
     BacktestMetrics,
     DatasetManifest,
     EnvironmentFingerprint,

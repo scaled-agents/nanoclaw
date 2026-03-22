@@ -1,4 +1,4 @@
-"""Click CLI for StrategyDNA: sdna init, diff, fork, verify, compile, attest, ingest, registry."""
+"""Click CLI for aphexDNA: sdna init, diff, fork, verify, compile, attest, ingest, registry."""
 
 from __future__ import annotations
 
@@ -9,18 +9,18 @@ from typing import Any
 
 import click
 
-from strategydna.canon import compute_hash, display_hash, from_sdna, stamp, to_sdna, verify
-from strategydna.compiler import compile_config, compile_genome
-from strategydna.diff import diff
-from strategydna.lineage import set_parent
-from strategydna.models import Frontmatter, GenomeBody, GenomeDocument
-from strategydna.templates import TEMPLATES
+from aphexdna.canon import compute_hash, display_hash, from_sdna, stamp, to_sdna, verify
+from aphexdna.compiler import compile_config, compile_genome
+from aphexdna.diff import diff
+from aphexdna.lineage import set_parent
+from aphexdna.models import Frontmatter, GenomeBody, GenomeDocument
+from aphexdna.templates import TEMPLATES
 
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="sdna")
 def cli() -> None:
-    """StrategyDNA -- declarative genome format for trading strategies."""
+    """aphexDNA -- declarative genome format for trading strategies."""
 
 
 @cli.command()
@@ -221,8 +221,8 @@ def attest_cmd(
     genome_file: str, result_file: str, output: str | None, attested_by: str
 ) -> None:
     """Create an attestation from a genome and FreqTrade backtest result."""
-    from strategydna.attestation import create_attestation, to_attestation_json
-    from strategydna.backtest_ingest import ingest_backtest_bundle
+    from aphexdna.attestation import create_attestation, to_attestation_json
+    from aphexdna.backtest_ingest import ingest_backtest_bundle
 
     genome_content = Path(genome_file).read_text(encoding="utf-8")
     genome_doc = stamp(from_sdna(genome_content))
@@ -255,7 +255,7 @@ def attest_cmd(
 )
 def verify_attestation_cmd(attestation_file: str, genome: str | None) -> None:
     """Verify the integrity of an attestation file."""
-    from strategydna.attestation import (
+    from aphexdna.attestation import (
         compute_attestation_hash,
         from_attestation_json,
         verify_attestation,
@@ -288,7 +288,7 @@ def verify_attestation_cmd(attestation_file: str, genome: str | None) -> None:
 @click.option("--json-output", "-j", is_flag=True, help="Output as JSON")
 def ingest_cmd(result_file: str, json_output: bool) -> None:
     """Parse a FreqTrade backtest result and display extracted metrics."""
-    from strategydna.backtest_ingest import ingest_backtest_bundle
+    from aphexdna.backtest_ingest import ingest_backtest_bundle
 
     metrics, dataset, environment = ingest_backtest_bundle(result_file)
 
@@ -331,7 +331,7 @@ def registry() -> None:
 )
 def registry_init(path: str) -> None:
     """Create a new empty registry."""
-    from strategydna.registry import Registry
+    from aphexdna.registry import Registry
 
     reg = Registry(path)
     try:
@@ -357,8 +357,8 @@ def registry_add(
     path: str,
 ) -> None:
     """Register a genome in the registry."""
-    from strategydna.attestation import from_attestation_json
-    from strategydna.registry import Registry
+    from aphexdna.attestation import from_attestation_json
+    from aphexdna.registry import Registry
 
     genome_content = Path(genome_file).read_text(encoding="utf-8")
     genome_doc = stamp(from_sdna(genome_content))
@@ -386,8 +386,8 @@ def registry_add(
 @click.option("--path", "-p", default=".sdna-registry", help="Registry path")
 def registry_attach(genome_hash: str, attestation_file: str, path: str) -> None:
     """Attach an attestation to an existing registry entry."""
-    from strategydna.attestation import from_attestation_json
-    from strategydna.registry import Registry
+    from aphexdna.attestation import from_attestation_json
+    from aphexdna.registry import Registry
 
     att_content = Path(attestation_file).read_text(encoding="utf-8")
     att = from_attestation_json(att_content)
@@ -409,7 +409,7 @@ def registry_attach(genome_hash: str, attestation_file: str, path: str) -> None:
 @click.option("--json-output", "-j", is_flag=True, help="Output as JSON")
 def registry_show(genome_hash: str, path: str, json_output: bool) -> None:
     """Show details of a registered genome."""
-    from strategydna.registry import Registry
+    from aphexdna.registry import Registry
 
     reg = Registry(path)
     try:
@@ -454,7 +454,7 @@ def registry_list(
     json_output: bool,
 ) -> None:
     """Search and list registered strategies."""
-    from strategydna.registry import Registry
+    from aphexdna.registry import Registry
 
     reg = Registry(path)
     try:
@@ -501,7 +501,7 @@ def registry_leaderboard(
     json_output: bool,
 ) -> None:
     """Display the strategy leaderboard."""
-    from strategydna.registry import Registry
+    from aphexdna.registry import Registry
 
     reg = Registry(path)
     try:
@@ -539,7 +539,7 @@ def registry_leaderboard(
 @click.option("--path", "-p", default=".sdna-registry", help="Registry path")
 def registry_export(output: str | None, path: str) -> None:
     """Export full registry snapshot as JSON."""
-    from strategydna.registry import Registry
+    from aphexdna.registry import Registry
 
     reg = Registry(path)
     try:

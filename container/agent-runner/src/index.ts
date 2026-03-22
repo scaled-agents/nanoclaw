@@ -325,7 +325,7 @@ function waitForIpcMessage(): Promise<string | null> {
 
 /**
  * Build MCP servers config, only including servers whose dependencies are present.
- * nanoclaw + freqtrade are always loaded; tds and swarm are conditional.
+ * nanoclaw + freqtrade are always loaded; aphexdata and swarm are conditional.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput): Record<string, any> {
@@ -354,27 +354,27 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
     },
   };
 
-  // StrategyDNA: genome lifecycle MCP (create, fork, compile, attest, register)
-  servers.strategydna = {
+  // aphexDNA: genome lifecycle MCP (create, fork, compile, attest, register)
+  servers.aphexdna = {
     command: 'python3',
-    args: ['-m', 'strategydna'],
+    args: ['-m', 'aphexdna'],
     env: {
       REGISTRY_PATH: '.sdna-registry',
     },
   };
 
-  // TDS: only load if URL is configured
-  if (process.env.TDS_URL) {
-    servers.tds = {
+  // aphexDATA: only load if URL is configured
+  if (process.env.APHEXDATA_URL) {
+    servers.aphexdata = {
       command: 'node',
-      args: [path.join(path.dirname(mcpServerPath), 'tds-mcp-stdio.js')],
+      args: [path.join(path.dirname(mcpServerPath), 'aphexdata-mcp-stdio.js')],
       env: {
-        TDS_URL: process.env.TDS_URL,
-        TDS_API_KEY: process.env.TDS_API_KEY || '',
-        TDS_AGENT_ID: process.env.TDS_AGENT_ID || '',
+        APHEXDATA_URL: process.env.APHEXDATA_URL,
+        APHEXDATA_API_KEY: process.env.APHEXDATA_API_KEY || '',
+        APHEXDATA_AGENT_ID: process.env.APHEXDATA_AGENT_ID || '',
       },
     };
-    log('MCP: tds enabled (TDS_URL set)');
+    log('MCP: aphexdata enabled (APHEXDATA_URL set)');
   }
 
   // Swarm: only load if report directory exists
@@ -480,8 +480,8 @@ async function runQuery(
         'NotebookEdit',
         'mcp__nanoclaw__*',
         'mcp__freqtrade__*',
-        'mcp__strategydna__*',
-        'mcp__tds__*',
+        'mcp__aphexdna__*',
+        'mcp__aphexdata__*',
         'mcp__swarm__*',
       ],
       env: sdkEnv,

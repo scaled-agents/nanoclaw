@@ -2,7 +2,7 @@
   "name": "@tradev/sdna",
   "version": "0.1.0",
   "type": "module",
-  "description": "FreqHub — GitHub-hosted registry for StrategyDNA trading strategy genomes",
+  "description": "FreqHub — GitHub-hosted registry for aphexDNA trading strategy genomes",
   "bin": {
     "sdna": "./cli/bin/sdna.js"
   },

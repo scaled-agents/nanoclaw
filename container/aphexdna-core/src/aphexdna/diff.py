@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from strategydna.models import GenomeDocument
+from aphexdna.models import GenomeDocument
 
 
 @dataclass

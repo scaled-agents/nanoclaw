@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
-from strategydna.verification import (
+from aphexdna.verification import (
     Attestation,
     AttestationVerdict,
     BacktestMetrics,

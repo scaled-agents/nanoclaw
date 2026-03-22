@@ -1,5 +1,5 @@
 /**
- * Compile a StrategyDNA genome body into a FreqTrade IStrategy Python file.
+ * Compile a aphexDNA genome body into a FreqTrade IStrategy Python file.
  */
 
 /**
@@ -364,7 +364,7 @@ import freqtrade.vendor.qtpylib.indicators as qtpylib${extraImportsBlock}
 
 class ${strategyName}(IStrategy):
     """
-    ${frontmatter.description || 'Auto-generated strategy from StrategyDNA genome.'}
+    ${frontmatter.description || 'Auto-generated strategy from aphexDNA genome.'}
     """
 
     INTERFACE_VERSION = 3

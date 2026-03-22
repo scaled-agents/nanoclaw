@@ -52,7 +52,7 @@ function saveSnapshot(weekKey, data) {
   fs.writeFileSync(path.join(dir, `metrics-${weekKey}.json`), JSON.stringify(data, null, 2));
 }
 
-// ── TDS Query ────────────────────────────────────────────────────────
+// ── aphexDATA Query ────────────────────────────────────────────────────────
 
 async function queryTDS(baseUrl, params) {
   if (!baseUrl) return [];
@@ -62,8 +62,8 @@ async function queryTDS(baseUrl, params) {
   }
   try {
     const headers = {};
-    if (process.env.TDS_API_KEY) {
-      headers['Authorization'] = `Bearer ${process.env.TDS_API_KEY}`;
+    if (process.env.APHEXDATA_API_KEY) {
+      headers['Authorization'] = `Bearer ${process.env.APHEXDATA_API_KEY}`;
     }
     const res = await fetch(`${baseUrl}/api/v1/events?${qs}`, { headers });
     if (!res.ok) return [];
@@ -103,7 +103,7 @@ export async function computeMetrics(opts) {
 
   const tdsUrl = opts.tdsUrl || '';
 
-  // 3. Query TDS events
+  // 3. Query aphexDATA events
   const [thisWeekAttested, thisWeekDiscards, lastWeekAttested, lastWeekDiscards, loopEvents] =
     await Promise.all([
       queryTDS(tdsUrl, { verb_id: 'attested', from: weekAgo.toISOString(), limit: 200 }),
@@ -113,7 +113,7 @@ export async function computeMetrics(opts) {
       queryTDS(tdsUrl, { verb_id: 'loop_complete', from: weekAgo.toISOString(), limit: 50 }),
     ]);
 
-  if (!tdsUrl) gaps.push('TDS unavailable');
+  if (!tdsUrl) gaps.push('aphexDATA unavailable');
 
   // Filter today's events
   const todayAttested = thisWeekAttested.filter(e => new Date(e.occurred_at) >= todayStart);
@@ -234,7 +234,7 @@ export async function computeMetrics(opts) {
     ? Math.round((hitRateWeek - prevSnapshot.velocity.hit_rate.this_week) * 1000) / 1000
     : null;
 
-  // 9. Recent experiments (last 20 from TDS)
+  // 9. Recent experiments (last 20 from aphexDATA)
   const allRecentEvents = [...thisWeekAttested, ...thisWeekDiscards]
     .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))
     .slice(0, 20);

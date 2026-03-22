@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-from strategydna.models import Frontmatter, GenomeBody, GenomeDocument
+from aphexdna.models import Frontmatter, GenomeBody, GenomeDocument
 
 
 def canonical_json(data: dict[str, Any]) -> str:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from strategydna.models import (
+from aphexdna.models import (
     CompositeAndSignal,
     CustomSignal,
     Exchange,

@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from strategydna.canon import canonical_json
-from strategydna.models import GenomeDocument
-from strategydna.verification import (
+from aphexdna.canon import canonical_json
+from aphexdna.models import GenomeDocument
+from aphexdna.verification import (
     Attestation,
     AttestationVerdict,
     BacktestMetrics,
@@ -253,7 +253,7 @@ def verify_attestation_chain(
 
     Returns list of error strings (empty = all valid).
     """
-    from strategydna.canon import verify as verify_genome
+    from aphexdna.canon import verify as verify_genome
 
     errors: list[str] = []
 

@@ -1,6 +1,6 @@
 # Research Metrics Dashboard
 
-Compute and format pipeline health metrics from the FreqHub registry and TDS event store.
+Compute and format pipeline health metrics from the FreqHub registry and aphexDATA event store.
 
 ## When to Use
 
@@ -92,6 +92,6 @@ Use as the first section in Workflow D morning reports:
 ## Error Handling
 
 - **Registry not built**: Tell user to run `sdna build content/ -o dist/` first
-- **TDS offline**: Show registry-only metrics, note "TDS unavailable — velocity data not shown"
+- **aphexDATA offline**: Show registry-only metrics, note "aphexDATA unavailable — velocity data not shown"
 - **No experiments**: Show registry stats with note "No experiments recorded yet"
 - **`_gaps` present**: Append as italic footnote

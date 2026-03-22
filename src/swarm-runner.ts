@@ -20,7 +20,7 @@ import { DATA_DIR } from './config.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 
-const swarmEnv = readEnvFile(['SWARM_REPORT_DIR', 'FREQTRADE_SWARM_DIR']);
+const swarmEnv = readEnvFile(['SWARM_REPORT_DIR', 'FREQSWARM_DIR']);
 
 const POLL_MS = 3000;
 const MAX_CONCURRENT_SWARM_JOBS = 2;
@@ -29,8 +29,8 @@ const SWARM_REPORT_DIR =
   swarmEnv.SWARM_REPORT_DIR ||
   path.join(DATA_DIR, 'swarm-reports');
 const REQUEST_DIR = path.join(SWARM_REPORT_DIR, 'requests');
-const FREQTRADE_SWARM_DIR =
-  process.env.FREQTRADE_SWARM_DIR || swarmEnv.FREQTRADE_SWARM_DIR || '';
+const FREQSWARM_DIR =
+  process.env.FREQSWARM_DIR || swarmEnv.FREQSWARM_DIR || '';
 
 interface RunningJob {
   runId: string;
@@ -48,7 +48,7 @@ function writeStatus(runId: string, status: Record<string, unknown>): void {
 
 /**
  * Copy strategy .py files from the group's freqtrade-user-data into the
- * swarm's strategies directory so freqtrade-swarm can find them.
+ * swarm's strategies directory so FreqSwarm can find them.
  * Extracts strategy names from the spec JSON and copies only those files.
  */
 function copyGroupStrategiesToSwarm(
@@ -56,7 +56,7 @@ function copyGroupStrategiesToSwarm(
   specPath: string,
 ): void {
   const swarmStrategiesDir = path.join(
-    FREQTRADE_SWARM_DIR,
+    FREQSWARM_DIR,
     'data',
     'user_data',
     'strategies',
@@ -144,10 +144,10 @@ function copyGroupStrategiesToSwarm(
  * Ensure a freqtrade config file exists in the swarm's data directory.
  * Copies the group's config if available, otherwise generates a minimal
  * backtest-only config from the spec's exchange settings.
- * Returns the swarm-local config path (relative to FREQTRADE_SWARM_DIR).
+ * Returns the swarm-local config path (relative to FREQSWARM_DIR).
  */
 function ensureSwarmConfig(groupFolder: string, specPath: string): string {
-  const swarmConfigDir = path.join(FREQTRADE_SWARM_DIR, 'data', 'user_data');
+  const swarmConfigDir = path.join(FREQSWARM_DIR, 'data', 'user_data');
   const swarmConfigPath = path.join(swarmConfigDir, 'config.json');
 
   // Try to copy the group's binance futures config
@@ -272,15 +272,15 @@ function processRequest(requestFile: string): void {
     return;
   }
 
-  if (!FREQTRADE_SWARM_DIR) {
+  if (!FREQSWARM_DIR) {
     logger.error(
       { runId },
-      'FREQTRADE_SWARM_DIR not set — cannot run swarm jobs',
+      'FREQSWARM_DIR not set — cannot run swarm jobs',
     );
     writeStatus(runId, {
       run_id: runId,
       status: 'failed',
-      error: 'FREQTRADE_SWARM_DIR environment variable not configured',
+      error: 'FREQSWARM_DIR environment variable not configured',
       started_at: new Date().toISOString(),
       finished_at: new Date().toISOString(),
     });
@@ -298,7 +298,7 @@ function processRequest(requestFile: string): void {
     pid: null, // filled after spawn
   });
 
-  // Spawn the freqtrade-swarm process
+  // Spawn the FreqSwarm process
   const reportDir = path.join(SWARM_REPORT_DIR, 'jobs', runId);
   fs.mkdirSync(reportDir, { recursive: true });
 
@@ -342,7 +342,7 @@ function processRequest(requestFile: string): void {
         ];
 
   const child = spawn('python', pythonArgs, {
-    cwd: FREQTRADE_SWARM_DIR,
+    cwd: FREQSWARM_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, MAX_CONCURRENT_BACKTESTS: String(workers) },
   });
@@ -547,16 +547,16 @@ export function startSwarmRunner(): void {
   }
 
   // Validate configuration before starting
-  if (!FREQTRADE_SWARM_DIR) {
+  if (!FREQSWARM_DIR) {
     logger.warn(
-      'FREQTRADE_SWARM_DIR not set — swarm runner disabled. Set it in .env to enable matrix sweeps.',
+      'FREQSWARM_DIR not set — swarm runner disabled. Set it in .env to enable matrix sweeps.',
     );
     return;
   }
-  if (!fs.existsSync(FREQTRADE_SWARM_DIR)) {
+  if (!fs.existsSync(FREQSWARM_DIR)) {
     logger.warn(
-      { swarmDir: FREQTRADE_SWARM_DIR },
-      'FREQTRADE_SWARM_DIR does not exist — swarm runner disabled',
+      { swarmDir: FREQSWARM_DIR },
+      'FREQSWARM_DIR does not exist — swarm runner disabled',
     );
     return;
   }
@@ -573,7 +573,7 @@ export function startSwarmRunner(): void {
   logger.info(
     {
       requestDir: REQUEST_DIR,
-      swarmDir: FREQTRADE_SWARM_DIR,
+      swarmDir: FREQSWARM_DIR,
       workers: 'env-passthrough',
     },
     'Swarm request runner started',
