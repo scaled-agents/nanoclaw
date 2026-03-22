@@ -460,6 +460,12 @@ async function runQuery(
     log(`Additional directories: ${extraDirs.join(', ')}`);
   }
 
+  // Write .mcp.json so subagents (Task tool) inherit MCP server access
+  const mcpConfig = buildMcpServers(mcpServerPath, containerInput);
+  const mcpJsonPath = path.join('/workspace/group', '.mcp.json');
+  fs.writeFileSync(mcpJsonPath, JSON.stringify({ mcpServers: mcpConfig }, null, 2));
+  log(`Wrote MCP config to ${mcpJsonPath} for subagent inheritance`);
+
   for await (const message of query({
     prompt: stream,
     options: {
