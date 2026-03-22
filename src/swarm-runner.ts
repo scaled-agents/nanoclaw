@@ -55,11 +55,16 @@ const MAX_JOB_DURATION_MS = 2 * 60 * 60 * 1000;
  * Resolve the chatJid for a job from the manifest's chat_jid field,
  * falling back to scanning registeredGroups by group_folder.
  */
-function resolveJobChatJid(manifest: { chat_jid?: string; group_folder?: string }): string | undefined {
+function resolveJobChatJid(manifest: {
+  chat_jid?: string;
+  group_folder?: string;
+}): string | undefined {
   if (manifest.chat_jid) return manifest.chat_jid;
   if (!deps || !manifest.group_folder) return undefined;
   const groups = deps.registeredGroups();
-  const entry = Object.entries(groups).find(([, g]) => g.folder === manifest.group_folder);
+  const entry = Object.entries(groups).find(
+    ([, g]) => g.folder === manifest.group_folder,
+  );
   return entry?.[0];
 }
 
@@ -68,9 +73,11 @@ function resolveJobChatJid(manifest: { chat_jid?: string; group_folder?: string 
  */
 function notifyUser(chatJid: string | undefined, text: string): void {
   if (!chatJid || !deps) return;
-  deps.sendMessage(chatJid, text).catch((err) =>
-    logger.error({ err, chatJid }, 'Failed to send swarm job notification'),
-  );
+  deps
+    .sendMessage(chatJid, text)
+    .catch((err) =>
+      logger.error({ err, chatJid }, 'Failed to send swarm job notification'),
+    );
 }
 
 function writeStatus(runId: string, status: Record<string, unknown>): void {
@@ -377,8 +384,16 @@ function processRequest(requestFile: string): void {
     env: { ...process.env, MAX_CONCURRENT_BACKTESTS: String(workers) },
   });
 
-  const chatJid = resolveJobChatJid(manifest as { chat_jid?: string; group_folder?: string });
-  const job: RunningJob = { runId, process: child, startedAt, chatJid, runType: manifest.run_type };
+  const chatJid = resolveJobChatJid(
+    manifest as { chat_jid?: string; group_folder?: string },
+  );
+  const job: RunningJob = {
+    runId,
+    process: child,
+    startedAt,
+    chatJid,
+    runType: manifest.run_type,
+  };
   activeJobs.set(runId, job);
 
   // Update status with PID
@@ -501,7 +516,10 @@ function processRequest(requestFile: string): void {
       error: `Spawn error: ${err.message}`,
     });
     logger.error({ runId, err }, 'Failed to spawn swarm process');
-    notifyUser(chatJid, `Swarm job \`${runId}\` failed to start: ${err.message}`);
+    notifyUser(
+      chatJid,
+      `Swarm job \`${runId}\` failed to start: ${err.message}`,
+    );
   });
 }
 
@@ -539,7 +557,10 @@ function checkJobTimeouts(): void {
     const elapsed = now - new Date(job.startedAt).getTime();
     if (elapsed > MAX_JOB_DURATION_MS) {
       const durationMin = Math.round(elapsed / 60000);
-      logger.warn({ runId, pid: job.process.pid, durationMin }, 'Swarm job exceeded max duration, killing');
+      logger.warn(
+        { runId, pid: job.process.pid, durationMin },
+        'Swarm job exceeded max duration, killing',
+      );
       job.process.kill('SIGTERM');
       activeJobs.delete(runId);
       writeStatus(runId, {
