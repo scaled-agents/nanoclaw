@@ -248,7 +248,7 @@ server.tool(
         pairs: ['BTC/USDT:USDT'],
         timeframes: ['1h'],
         timerange: '20250901-20260301',
-        n_walkforward_windows: 1,
+        n_walkforward_windows: 2,
         skip_hyperopt: true,
         exchange: 'binance',
         strategy_path: 'data/user_data/strategies/BbandsRsiAdx.py',
