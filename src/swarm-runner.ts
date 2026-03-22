@@ -414,7 +414,8 @@ function processRequest(requestFile: string): void {
         const pyStatusPath = path.join(reportDir, 'latest', 'status.json');
         if (fs.existsSync(pyStatusPath)) {
           const pyStatus = JSON.parse(fs.readFileSync(pyStatusPath, 'utf-8'));
-          if (!commonError) commonError = pyStatus.common_error || pyStatus.error;
+          if (!commonError)
+            commonError = pyStatus.common_error || pyStatus.error;
           validationError = pyStatus.validation_error;
         }
       } catch {
