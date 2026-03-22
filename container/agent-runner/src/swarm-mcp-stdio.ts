@@ -243,9 +243,7 @@ server.tool(
 
       const spec = {
         genome: {
-          identity: { name: 'SelfTest_SampleStrategy', version: '1.0' },
-          strategy: { class_name: 'SampleStrategy' },
-          risk: {},
+          identity: { genome_id: `selftest_${Date.now()}`, name: 'SelfTest_BbandsRsiAdx', version: '1.0' },
         },
         pairs: ['BTC/USDT:USDT'],
         timeframes: ['1h'],
@@ -253,6 +251,7 @@ server.tool(
         n_walkforward_windows: 1,
         skip_hyperopt: true,
         exchange: 'binance',
+        strategy_path: 'user_data/strategies/BbandsRsiAdx.py',
       };
 
       fs.writeFileSync(
