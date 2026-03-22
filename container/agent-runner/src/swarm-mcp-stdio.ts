@@ -1,7 +1,7 @@
 /**
  * Stdio MCP Server for NanoClaw FreqSwarm Integration
- * Provides 11 tools: 6 read-only for viewing strategy research reports,
- * 5 trigger tools for matrix sweeps, autoresearch batches, and job management.
+ * Provides 12 tools: 6 read-only for viewing strategy research reports,
+ * 6 trigger tools for matrix sweeps, batch backtests, autoresearch batches, and job management.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -518,6 +518,76 @@ server.tool(
       });
     } catch (e) {
       return err(`Failed to submit autoresearch: ${(e as Error).message}`);
+    }
+  },
+);
+
+server.tool(
+  'swarm_trigger_batch_backtest',
+  'Submit a batch backtest triage job — runs MANY strategies through a single raw backtest each, in parallel. Designed for fast triage of large strategy pools (e.g. 255 strategies). Returns a run_id for polling with swarm_poll_run. Use swarm_job_results to read ranked results when done.',
+  {
+    strategies: z.array(z.string()).describe('Array of strategy class names to backtest (must exist as .py files in the group strategies directory)'),
+    timerange: z.string().describe('Backtest date range in YYYYMMDD-YYYYMMDD format'),
+    pairs: z.array(z.string()).optional().describe('Trading pairs to test. Default: ["BTC/USDT:USDT"]'),
+    timeframes: z.array(z.string()).optional().describe('Timeframes to test. Default: ["1h"]'),
+    fee: z.number().optional().describe('Fee fraction (e.g. 0.001). Default: 0.001'),
+    workers: z.number().optional().describe('Parallel worker count (1-8). Default 4. Use 6-8 for 100+ strategies.'),
+    priority: z.string().optional().describe('Queue priority: "high" (jumps queue) or "normal". Default "normal".'),
+  },
+  async (args) => {
+    try {
+      if (args.strategies.length === 0) {
+        return err('strategies array must not be empty');
+      }
+
+      const spec = {
+        strategies: args.strategies,
+        pairs: args.pairs || ['BTC/USDT:USDT'],
+        timeframes: args.timeframes || ['1h'],
+        timerange: args.timerange,
+        fee: args.fee || 0.001,
+        exchange: 'binance',
+      };
+
+      const nTasks = spec.strategies.length * spec.pairs.length * spec.timeframes.length;
+      const runId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      fs.mkdirSync(REQUEST_DIR, { recursive: true });
+
+      // Write spec file
+      fs.writeFileSync(
+        path.join(REQUEST_DIR, `${runId}.spec.json`),
+        JSON.stringify(spec, null, 2),
+      );
+
+      // Write request manifest
+      const workers = Math.min(Math.max(args.workers || 4, 1), 8);
+      const priority = args.priority === 'high' ? 'high' : 'normal';
+      const manifest = {
+        run_id: runId,
+        run_type: 'batch_backtest',
+        submitted_at: new Date().toISOString(),
+        workers,
+        priority,
+        group_folder: process.env.GROUP_FOLDER || '',
+        chat_jid: process.env.NANOCLAW_CHAT_JID || '',
+      };
+      fs.writeFileSync(
+        path.join(REQUEST_DIR, `${runId}.request.json`),
+        JSON.stringify(manifest, null, 2),
+      );
+
+      log(`Batch backtest: submitted ${runId} (${spec.strategies.length} strategies, ${nTasks} tasks, workers=${workers})`);
+      return ok({
+        run_id: runId,
+        status: 'submitted',
+        strategies: spec.strategies.length,
+        total_tasks: nTasks,
+        workers,
+        priority,
+        message: 'Batch backtest queued. Use swarm_poll_run to check progress, swarm_job_results to read ranked results when done.',
+      });
+    } catch (e) {
+      return err(`Failed to submit batch backtest: ${(e as Error).message}`);
     }
   },
 );

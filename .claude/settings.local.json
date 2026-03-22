@@ -99,7 +99,8 @@
       "Bash(netstat -ano)",
       "Read(//d/Users/scale/Code/nanoclaw/**)",
       "Bash(docker info)",
-      "Bash(taskkill //PID 219364 //F)"
+      "Bash(taskkill //PID 219364 //F)",
+      "Bash(python -c \":*)"
     ]
   }
 }

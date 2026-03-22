@@ -147,6 +147,13 @@ function copyGroupStrategiesToSwarm(
     }
   }
 
+  // Batch backtest: spec.strategies[] (array of strategy class names)
+  if (Array.isArray(spec.strategies)) {
+    for (const s of spec.strategies as string[]) {
+      if (s) names.add(String(s));
+    }
+  }
+
   if (names.size === 0) {
     // Fallback: copy ALL .py files from the group's strategies dir
     logger.info(
@@ -354,29 +361,27 @@ function processRequest(requestFile: string): void {
   // Pass workers count as env var (default 4, capped at 8)
   const workers = Math.min(manifest.workers || 4, 8);
 
-  // Route by run_type: autoresearch uses different CLI subcommand
-  const pythonArgs =
-    manifest.run_type === 'autoresearch'
-      ? [
-          '-m',
-          'src',
-          'autoresearch',
-          'submit',
-          '--spec',
-          effectiveSpecPath,
-          '--report-dir',
-          reportDir,
-        ]
-      : [
-          '-m',
-          'src',
-          'job',
-          'submit',
-          '--spec',
-          effectiveSpecPath,
-          '--report-dir',
-          reportDir,
-        ];
+  // Route by run_type: each type uses a different CLI subcommand
+  let pythonArgs: string[];
+  if (manifest.run_type === 'autoresearch') {
+    pythonArgs = [
+      '-m', 'src', 'autoresearch', 'submit',
+      '--spec', effectiveSpecPath,
+      '--report-dir', reportDir,
+    ];
+  } else if (manifest.run_type === 'batch_backtest') {
+    pythonArgs = [
+      '-m', 'src', 'batch', 'submit',
+      '--spec', effectiveSpecPath,
+      '--report-dir', reportDir,
+    ];
+  } else {
+    pythonArgs = [
+      '-m', 'src', 'job', 'submit',
+      '--spec', effectiveSpecPath,
+      '--report-dir', reportDir,
+    ];
+  }
 
   const child = spawn('python', pythonArgs, {
     cwd: FREQSWARM_DIR,
