@@ -243,7 +243,7 @@ server.tool(
 
       const spec = {
         genome: {
-          identity: { genome_id: `selftest_${Date.now()}`, name: 'SelfTest_BbandsRsiAdx', version: '1.0' },
+          identity: { genome_id: `selftest_${Date.now()}`, name: 'BbandsRsiAdx', version: '1.0' },
         },
         pairs: ['BTC/USDT:USDT'],
         timeframes: ['1h'],
