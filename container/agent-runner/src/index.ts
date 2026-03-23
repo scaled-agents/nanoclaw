@@ -113,6 +113,14 @@ function writeOutput(output: ContainerOutput): void {
   console.log(OUTPUT_END_MARKER);
 }
 
+const HEARTBEAT_INTERVAL_MS = 60_000; // 1 minute
+
+function writeHeartbeat(): void {
+  console.log(OUTPUT_START_MARKER);
+  console.log(JSON.stringify({ status: 'heartbeat' }));
+  console.log(OUTPUT_END_MARKER);
+}
+
 function log(message: string): void {
   console.error(`[agent-runner] ${message}`);
 }
@@ -466,6 +474,8 @@ async function runQuery(
   fs.writeFileSync(mcpJsonPath, JSON.stringify({ mcpServers: mcpConfig }, null, 2));
   log(`Wrote MCP config to ${mcpJsonPath} for subagent inheritance`);
 
+  let heartbeat: ReturnType<typeof setInterval> | null = setInterval(writeHeartbeat, HEARTBEAT_INTERVAL_MS);
+
   for await (const message of query({
     prompt: stream,
     options: {
@@ -530,6 +540,8 @@ async function runQuery(
     }
   }
 
+  if (heartbeat) clearInterval(heartbeat);
+  heartbeat = null;
   ipcPolling = false;
   log(`Query done. Messages: ${messageCount}, results: ${resultCount}, lastAssistantUuid: ${lastAssistantUuid || 'none'}, closedDuringQuery: ${closedDuringQuery}`);
   return { newSessionId, lastAssistantUuid, closedDuringQuery };
