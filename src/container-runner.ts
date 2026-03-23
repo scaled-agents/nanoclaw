@@ -461,7 +461,10 @@ export async function runContainerAgent(
             const parsed: ContainerOutput = JSON.parse(jsonStr);
 
             // Heartbeat — reset timer but don't forward as output
-            if ((parsed as unknown as Record<string, unknown>).status === 'heartbeat') {
+            if (
+              (parsed as unknown as Record<string, unknown>).status ===
+              'heartbeat'
+            ) {
               resetTimeout();
               continue;
             }

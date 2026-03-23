@@ -100,7 +100,13 @@
       "Read(//d/Users/scale/Code/nanoclaw/**)",
       "Bash(docker info)",
       "Bash(taskkill //PID 219364 //F)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(python -m pytest tests/ -x -v)",
+      "Bash(curl -s http://localhost:3100/api/v1/health)",
+      "Bash(curl -s http://localhost:3100/api/v1/research/dashboard)",
+      "Bash(wmic process where \"commandline like ''%aphexDATA%'' and name=''node.exe''\" get processid,commandline)",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //V)",
+      "Bash(docker compose up -d --force-recreate aphexdata-api)"
     ]
   }
 }
