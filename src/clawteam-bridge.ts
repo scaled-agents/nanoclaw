@@ -51,7 +51,12 @@ export function getActiveWorkerCount(leaderFolder?: string): number {
 /** Get status of all workers for a leader. */
 export function getWorkerStatuses(
   leaderFolder: string,
-): Array<{ workerId: string; name: string; status: string; startedAt: string }> {
+): Array<{
+  workerId: string;
+  name: string;
+  status: string;
+  startedAt: string;
+}> {
   const statuses: Array<{
     workerId: string;
     name: string;
@@ -71,10 +76,7 @@ export function getWorkerStatuses(
   return statuses;
 }
 
-function writeResult(
-  leaderFolder: string,
-  result: WorkerResult,
-): void {
+function writeResult(leaderFolder: string, result: WorkerResult): void {
   const leaderIpcDir = resolveGroupIpcPath(leaderFolder);
   const resultsDir = path.join(leaderIpcDir, 'team', 'results');
   fs.mkdirSync(resultsDir, { recursive: true });
@@ -242,7 +244,11 @@ export async function spawnWorker(
 /** Clean up stale worker folders from previous runs. */
 export function cleanupStaleWorkers(): void {
   // Clean up worker group folders (start with 'w_')
-  for (const dir of [GROUPS_DIR, path.join(DATA_DIR, 'sessions'), path.join(DATA_DIR, 'ipc')]) {
+  for (const dir of [
+    GROUPS_DIR,
+    path.join(DATA_DIR, 'sessions'),
+    path.join(DATA_DIR, 'ipc'),
+  ]) {
     try {
       if (!fs.existsSync(dir)) continue;
       for (const entry of fs.readdirSync(dir)) {
@@ -250,9 +256,15 @@ export function cleanupStaleWorkers(): void {
           const fullPath = path.join(dir, entry);
           try {
             fs.rmSync(fullPath, { recursive: true, force: true });
-            logger.debug({ path: fullPath }, 'Cleaned up stale worker artifact');
+            logger.debug(
+              { path: fullPath },
+              'Cleaned up stale worker artifact',
+            );
           } catch (err) {
-            logger.warn({ path: fullPath, err }, 'Failed to clean stale worker');
+            logger.warn(
+              { path: fullPath, err },
+              'Failed to clean stale worker',
+            );
           }
         }
       }
