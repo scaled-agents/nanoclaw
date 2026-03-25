@@ -124,7 +124,16 @@
       "Bash(docker context ls)",
       "Bash(docker context use default)",
       "Bash(docker version)",
-      "Bash(docker ps --filter \"name=nanoclaw\" --format \"{{.Names}}\\\\t{{.Status}}\")"
+      "Bash(docker ps --filter \"name=nanoclaw\" --format \"{{.Names}}\\\\t{{.Status}}\")",
+      "Bash(python -m pytest tests/ -x -q --tb=short -k \"walkforward or autoresearch_report\")",
+      "Bash(python -m pytest tests/ -x -q --tb=short)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k != ''keepers'' and k != ''rejects''}, indent=2\\)\\)\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\(''d:/Users/scale/Code/_scaled-agents/nanoclaw/data/swarm-reports/jobs/ar_1774403899218_aeb4qd/latest/results.json''\\)\\); print\\(json.dumps\\({k: v for k, v in d.items\\(\\) if k not in \\(''keepers'',''rejects''\\)}, indent=2\\)\\)\")",
+      "Bash(python -m pytest tests/ -x -q)",
+      "Bash(tasklist.exe)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \"\"Name=''node.exe''\"\" | Select-Object ProcessId, CommandLine | Format-Table -AutoSize -Wrap\")",
+      "Bash(powershell -Command \"Stop-Process -Id 29988 -Force; Stop-Process -Id 15700 -Force; Stop-Process -Id 29772 -Force\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \"\"Name=''node.exe''\"\" | Where-Object { $_.CommandLine -like ''*nanoclaw*'' } | Select-Object ProcessId, CommandLine | Format-Table -AutoSize -Wrap\")"
     ]
   }
 }

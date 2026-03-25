@@ -49,9 +49,7 @@ export function getActiveWorkerCount(leaderFolder?: string): number {
 }
 
 /** Get status of all workers for a leader. */
-export function getWorkerStatuses(
-  leaderFolder: string,
-): Array<{
+export function getWorkerStatuses(leaderFolder: string): Array<{
   workerId: string;
   name: string;
   status: string;
