@@ -1,9 +1,10 @@
 /**
  * Stdio MCP Server for NanoClaw FreqSwarm Integration
- * Provides 15 tools: 6 read-only for viewing strategy research reports,
+ * Provides 16 tools: 6 read-only for viewing strategy research reports,
  * 6 trigger tools for matrix sweeps, batch backtests, autoresearch batches, and job management,
  * 2 seed library tools for loading pre-built native sdna seed genomes,
- * 1 strategy scanner tool for determining mutation eligibility of non-sdna strategies.
+ * 1 strategy scanner tool for determining mutation eligibility of non-sdna strategies,
+ * 1 history tool for querying past autoresearch mutations on a strategy.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -688,6 +689,144 @@ server.tool(
       });
     } catch (e) {
       return err(`Failed to submit scan: ${(e as Error).message}`);
+    }
+  },
+);
+
+server.tool(
+  'swarm_autoresearch_history',
+  'Scan all completed autoresearch runs and return mutations tried on a specific strategy. ' +
+  'Use BEFORE a new autoresearch run to: avoid repeating failed mutations, detect plateaus ' +
+  '(many tried, 0 keepers), and identify productive mutation families.\n' +
+  'Returns up to 50 most recent mutations sorted newest-first, plus a per-family keeper-rate summary.',
+  {
+    genome_id_or_name: z.string().describe(
+      'Strategy class name (e.g. "BbandsRsiAdx") or genome ID prefix. ' +
+      'Matched against variant_name, variant_genome_id, and parent_genome_id.',
+    ),
+  },
+  async ({ genome_id_or_name }) => {
+    try {
+      if (!fs.existsSync(REQUEST_DIR)) {
+        return ok({
+          genome_id_or_name,
+          mutations: [],
+          total_found: 0,
+          returned: 0,
+          summary: { total_tried: 0, keepers: 0, best_composite: null, worst_composite: null, families_tried: {} },
+          message: 'No requests directory found.',
+        });
+      }
+
+      type Entry = {
+        run_id: string;
+        variant_genome_id: string;
+        variant_name: string;
+        parent_genome_id: string;
+        mutations: unknown[];
+        composite_score: number;
+        mean_sharpe: number;
+        is_keeper: boolean;
+        reason: string;
+      };
+      const entries: Entry[] = [];
+      const q = genome_id_or_name.toLowerCase();
+
+      for (const sf of fs.readdirSync(REQUEST_DIR).filter(f => f.endsWith('.status.json'))) {
+        let status: Record<string, unknown>;
+        try {
+          status = JSON.parse(fs.readFileSync(path.join(REQUEST_DIR, sf), 'utf-8'));
+        } catch {
+          continue;
+        }
+        if (status.run_type !== 'autoresearch' || status.status !== 'completed' || !status.report_dir) continue;
+
+        const resultsPath = path.join(String(status.report_dir), 'latest', 'results.json');
+        if (!fs.existsSync(resultsPath)) continue;
+
+        let results: Record<string, unknown>;
+        try {
+          results = JSON.parse(fs.readFileSync(resultsPath, 'utf-8'));
+        } catch {
+          continue;
+        }
+
+        const runId = String(status.run_id || sf.replace('.status.json', ''));
+        const allVariants = [
+          ...(Array.isArray(results.keepers) ? results.keepers : []),
+          ...(Array.isArray(results.rejects) ? results.rejects : []),
+        ] as Record<string, unknown>[];
+
+        for (const v of allVariants) {
+          const vId = String(v.variant_genome_id || '');
+          const vName = String(v.variant_name || '');
+          const pId = String(v.parent_genome_id || '');
+          if (
+            !vId.toLowerCase().startsWith(q) &&
+            !vName.toLowerCase().includes(q) &&
+            !pId.toLowerCase().includes(q)
+          ) continue;
+          entries.push({
+            run_id: runId,
+            variant_genome_id: vId,
+            variant_name: vName,
+            parent_genome_id: pId,
+            mutations: Array.isArray(v.mutations) ? v.mutations : [],
+            composite_score: Number(v.composite_score ?? 0),
+            mean_sharpe: Number(v.mean_sharpe ?? 0),
+            is_keeper: Boolean(v.is_keeper),
+            reason: String(v.reason || ''),
+          });
+        }
+      }
+
+      entries.sort((a, b) => b.run_id.localeCompare(a.run_id));
+      const limited = entries.slice(0, 50);
+
+      // Per-family keeper rates
+      const familyStats: Record<string, { tried: number; keepers: number }> = {};
+      for (const e of entries) {
+        const seen = new Set<string>();
+        for (const mut of e.mutations) {
+          const family = String((mut as Record<string, unknown>).family || 'unknown');
+          if (seen.has(family)) continue;
+          seen.add(family);
+          if (!familyStats[family]) familyStats[family] = { tried: 0, keepers: 0 };
+          familyStats[family].tried++;
+          if (e.is_keeper) familyStats[family].keepers++;
+        }
+      }
+      const familiesTried = Object.fromEntries(
+        Object.entries(familyStats).map(([k, v]) => [
+          k,
+          { ...v, keeper_rate: v.tried > 0 ? Math.round((v.keepers / v.tried) * 1000) / 1000 : 0 },
+        ]),
+      );
+
+      const totalTried = entries.length;
+      const scores = entries.map(e => e.composite_score);
+
+      log(`History: query="${genome_id_or_name}" → ${totalTried} matches, returning ${limited.length}`);
+      return ok({
+        genome_id_or_name,
+        mutations: limited,
+        total_found: totalTried,
+        returned: limited.length,
+        summary: {
+          total_tried: totalTried,
+          keepers: entries.filter(e => e.is_keeper).length,
+          best_composite: scores.length ? Math.max(...scores) : null,
+          worst_composite: scores.length ? Math.min(...scores) : null,
+          families_tried: familiesTried,
+        },
+        message: totalTried === 0
+          ? `No autoresearch history found for "${genome_id_or_name}".`
+          : totalTried > 50
+            ? `Found ${totalTried} total — showing newest 50. Narrow the query for more precision.`
+            : `Found ${totalTried} mutations.`,
+      });
+    } catch (e) {
+      return err(`Failed to read autoresearch history: ${(e as Error).message}`);
     }
   },
 );

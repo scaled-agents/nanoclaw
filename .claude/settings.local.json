@@ -106,7 +106,25 @@
       "Bash(curl -s http://localhost:3100/api/v1/research/dashboard)",
       "Bash(wmic process where \"commandline like ''%aphexDATA%'' and name=''node.exe''\" get processid,commandline)",
       "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //V)",
-      "Bash(docker compose up -d --force-recreate aphexdata-api)"
+      "Bash(docker compose up -d --force-recreate aphexdata-api)",
+      "Bash(docker run --rm freqtradeorg/freqtrade:stable --version)",
+      "Bash(docker images freqtradeorg/freqtrade --format \"{{.Tag}}\")",
+      "Bash(python3:*)",
+      "Bash(ls -la *.db)",
+      "Bash(ls -la data/user_data/strategies/*g1*)",
+      "Bash(xargs grep -l \"RSI_MACD\\\\|autoresearch\\\\|genome\")",
+      "Bash(taskkill /PID 81032 /F)",
+      "Bash(taskkill /PID 76460 /F)",
+      "Bash(taskkill /PID 81032 /T /F)",
+      "Bash(taskkill /PID 76460 /T /F)",
+      "Bash(cmd /c \"taskkill /PID 76460 /F\")",
+      "Bash(powershell -Command \"Stop-Process -Id 76460 -Force; Start-Sleep 1; \\(netstat -ano | Select-String '':3001 ''\\) -eq '''' \")",
+      "Bash(grep -r \"genome_id\\\\|variant\" src/schemas/*.py)",
+      "Bash(bash container/build.sh)",
+      "Bash(docker context ls)",
+      "Bash(docker context use default)",
+      "Bash(docker version)",
+      "Bash(docker ps --filter \"name=nanoclaw\" --format \"{{.Names}}\\\\t{{.Status}}\")"
     ]
   }
 }

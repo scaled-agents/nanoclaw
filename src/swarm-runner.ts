@@ -208,6 +208,25 @@ function ensureSwarmConfig(groupFolder: string, specPath: string): string {
   if (fs.existsSync(groupConfig)) {
     fs.mkdirSync(swarmConfigDir, { recursive: true });
     fs.copyFileSync(groupConfig, swarmConfigPath);
+    // freqtrade 2026.2 requires price_side="other" for lookahead analysis
+    try {
+      const cfg = JSON.parse(fs.readFileSync(swarmConfigPath, 'utf-8'));
+      let patched = false;
+      if (cfg.entry_pricing?.price_side && cfg.entry_pricing.price_side !== 'other') {
+        cfg.entry_pricing.price_side = 'other';
+        patched = true;
+      }
+      if (cfg.exit_pricing?.price_side && cfg.exit_pricing.price_side !== 'other') {
+        cfg.exit_pricing.price_side = 'other';
+        patched = true;
+      }
+      if (patched) {
+        fs.writeFileSync(swarmConfigPath, JSON.stringify(cfg, null, 2));
+        logger.info({ dst: swarmConfigPath }, 'Patched price_side to "other" for freqtrade 2026.2');
+      }
+    } catch {
+      // Non-critical — config still usable without patch
+    }
     logger.info(
       { src: groupConfig, dst: swarmConfigPath },
       'Copied group config to swarm',
@@ -383,7 +402,20 @@ function processRequest(requestFile: string): void {
       });
       return;
     }
-    pythonArgs = ['-m', 'src', 'scan', strategyName];
+    const swarmStrategiesDir = path.join(
+      FREQSWARM_DIR,
+      'data',
+      'user_data',
+      'strategies',
+    );
+    pythonArgs = [
+      '-m',
+      'src',
+      'scan',
+      strategyName,
+      '--strategies-dir',
+      swarmStrategiesDir,
+    ];
   } else if (manifest.run_type === 'autoresearch') {
     pythonArgs = [
       '-m',
@@ -487,8 +519,11 @@ function processRequest(requestFile: string): void {
         ...(stderr && !succeeded ? { error: stderr.slice(0, 2000) } : {}),
       });
       if (succeeded && scanResult) {
-        const eligibility = (scanResult as Record<string, unknown>).mutation_eligibility as Record<string, unknown> | undefined;
-        const families = eligibility?.eligible_patch_families as string[] | undefined;
+        const eligibility = (scanResult as Record<string, unknown>)
+          .mutation_eligibility as Record<string, unknown> | undefined;
+        const families = eligibility?.eligible_patch_families as
+          | string[]
+          | undefined;
         notifyUser(
           job.chatJid,
           `Strategy scan complete for ${(scanResult as Record<string, unknown>).strategy_ref ? JSON.stringify((scanResult as Record<string, unknown>).strategy_ref) : 'unknown'}.\nEligible families: ${families?.join(', ') || 'none'}`,
