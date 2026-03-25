@@ -4,6 +4,7 @@ import path from 'path';
 import { CronExpressionParser } from 'cron-parser';
 
 import { DATA_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
+import { spawnWorker } from './clawteam-bridge.js';
 import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
@@ -171,6 +172,9 @@ export async function processTaskIpc(
     trigger?: string;
     requiresTrigger?: boolean;
     containerConfig?: RegisteredGroup['containerConfig'];
+    // For team_spawn_worker
+    worker_id?: string;
+    timeout_minutes?: number;
   },
   sourceGroup: string, // Verified identity from IPC directory
   isMain: boolean, // Verified from directory path
@@ -446,6 +450,37 @@ export async function processTaskIpc(
           { data },
           'Invalid register_group request - missing required fields',
         );
+      }
+      break;
+
+    case 'team_spawn_worker':
+      if (!isMain) {
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized team_spawn_worker attempt blocked',
+        );
+        break;
+      }
+      if (data.worker_id && data.name && data.prompt) {
+        const leaderGroup = Object.values(registeredGroups).find(
+          (g) => g.folder === sourceGroup,
+        );
+        if (leaderGroup) {
+          // Async spawn — don't block the IPC loop
+          spawnWorker(
+            leaderGroup,
+            sourceGroup,
+            data.worker_id as string,
+            data.name as string,
+            data.prompt as string,
+            (data.timeout_minutes as number) || 30,
+          ).catch((err) => {
+            logger.error(
+              { err, workerId: data.worker_id },
+              'Failed to spawn team worker',
+            );
+          });
+        }
       }
       break;
 

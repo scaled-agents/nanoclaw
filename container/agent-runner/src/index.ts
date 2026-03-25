@@ -398,6 +398,19 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
     log('MCP: swarm enabled (report dir exists)');
   }
 
+  // ClawTeam: only for main group (leader can spawn workers)
+  if (containerInput.isMain) {
+    servers.clawteam = {
+      command: 'node',
+      args: [path.join(path.dirname(mcpServerPath), 'clawteam-mcp-stdio.js')],
+      env: {
+        NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
+        NANOCLAW_IS_MAIN: '1',
+      },
+    };
+    log('MCP: clawteam enabled (main group)');
+  }
+
   log(`MCP servers: ${Object.keys(servers).join(', ')}`);
   return servers;
 }
@@ -499,6 +512,7 @@ async function runQuery(
         'mcp__aphexdna__*',
         'mcp__aphexdata__*',
         'mcp__swarm__*',
+        'mcp__clawteam__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',

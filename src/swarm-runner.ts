@@ -273,6 +273,8 @@ function ensureSwarmConfig(groupFolder: string, specPath: string): string {
       key: '',
       secret: '',
     },
+    entry_pricing: { price_side: 'other' },
+    exit_pricing: { price_side: 'other' },
     pairlists: [{ method: 'StaticPairList' }],
   };
 

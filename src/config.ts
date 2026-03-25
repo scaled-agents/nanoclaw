@@ -57,6 +57,14 @@ export const MAX_CONCURRENT_CONTAINERS = Math.max(
   1,
   parseInt(process.env.MAX_CONCURRENT_CONTAINERS || '5', 10) || 5,
 );
+export const MAX_TEAM_WORKERS = Math.max(
+  1,
+  parseInt(process.env.MAX_TEAM_WORKERS || '3', 10) || 3,
+);
+export const WORKER_TIMEOUT = parseInt(
+  process.env.WORKER_TIMEOUT || '2700000',
+  10,
+); // 45 min default
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

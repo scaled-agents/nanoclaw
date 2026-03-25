@@ -44,6 +44,7 @@ import {
 } from './db.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
+import { cleanupStaleWorkers } from './clawteam-bridge.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
 import { startSwarmRunner } from './swarm-runner.js';
@@ -634,6 +635,7 @@ async function main(): Promise<void> {
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
   });
+  cleanupStaleWorkers();
   startSwarmRunner({
     sendMessage: async (jid, rawText) => {
       const channel = findChannel(channels, jid);

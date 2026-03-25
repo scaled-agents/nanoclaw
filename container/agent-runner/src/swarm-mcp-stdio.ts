@@ -1,7 +1,8 @@
 /**
  * Stdio MCP Server for NanoClaw FreqSwarm Integration
- * Provides 16 tools: 6 read-only for viewing strategy research reports,
+ * Provides 18 tools: 6 read-only for viewing strategy research reports,
  * 6 trigger tools for matrix sweeps, batch backtests, autoresearch batches, and job management,
+ * 2 blocking execution tools (swarm_execute_sweep, swarm_execute_autoresearch),
  * 2 seed library tools for loading pre-built native sdna seed genomes,
  * 1 strategy scanner tool for determining mutation eligibility of non-sdna strategies,
  * 1 history tool for querying past autoresearch mutations on a strategy.
@@ -256,6 +257,7 @@ server.tool(
         skip_hyperopt: true,
         exchange: 'binance',
         strategy_path: 'data/user_data/strategies/BbandsRsiAdx.py',
+        enable_audits: false,
       };
 
       fs.writeFileSync(
@@ -592,6 +594,152 @@ server.tool(
       });
     } catch (e) {
       return err(`Failed to submit batch backtest: ${(e as Error).message}`);
+    }
+  },
+);
+
+// ─── Blocking Execution Tools ─────────────────────────────────────────
+// These spawn `python -m src execute` and block until completion.
+// Results are returned directly — no polling, no status files.
+
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import * as os from 'os';
+const execFileAsync = promisify(execFile);
+
+const FREQSWARM_DIR = process.env.FREQSWARM_DIR || '/workspace/extra/freqswarm';
+const EXECUTE_TIMEOUT_MS = parseInt(process.env.EXECUTE_TIMEOUT_MS || '2700000', 10); // 45 min default
+
+async function runExecute(
+  subcommand: string,
+  specJson: string,
+  reportDir: string,
+  workers: number,
+): Promise<{ stdout: string; stderr: string }> {
+  // Write spec to temp file
+  const tmpSpec = path.join(os.tmpdir(), `exec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.json`);
+  fs.writeFileSync(tmpSpec, specJson);
+
+  const args = ['-m', 'src', 'execute', subcommand, '--spec', tmpSpec];
+  if (reportDir) {
+    args.push('--report-dir', reportDir);
+  }
+
+  try {
+    const result = await execFileAsync('python', args, {
+      cwd: FREQSWARM_DIR,
+      timeout: EXECUTE_TIMEOUT_MS,
+      maxBuffer: 50 * 1024 * 1024, // 50 MB
+      env: {
+        ...process.env,
+        MAX_CONCURRENT_BACKTESTS: String(workers),
+      },
+    });
+    return result;
+  } finally {
+    try { fs.unlinkSync(tmpSpec); } catch { /* ignore */ }
+  }
+}
+
+server.tool(
+  'swarm_execute_sweep',
+  'BLOCKING: Run a matrix sweep to completion and return results directly (no polling needed). ' +
+  'Takes ~5-30 min depending on pairs × timeframes × windows. ' +
+  'Returns the full JobResults JSON with results array, heatmap, top_k, and composite scores. ' +
+  'Use this instead of swarm_trigger_run + swarm_poll_run when you want to wait for results.',
+  {
+    spec_json: z.string().describe('MatrixSweepSpec JSON string (genome, pairs, timeframes, n_walkforward_windows)'),
+    workers: z.number().optional().describe('Parallel worker count (1-8). Default 4.'),
+    report_dir: z.string().optional().describe('Optional directory to also write results.json to disk.'),
+  },
+  async (args) => {
+    try {
+      // Validate JSON structure
+      const spec = JSON.parse(args.spec_json);
+      if (!spec.genome?.identity?.name) {
+        return err('Invalid spec: missing genome.identity.name');
+      }
+      if (!Array.isArray(spec.pairs) || spec.pairs.length === 0) {
+        return err('Invalid spec: missing or empty pairs array');
+      }
+
+      const workers = Math.min(Math.max(args.workers || 4, 1), 8);
+      const reportDir = args.report_dir || '';
+
+      log(`execute_sweep: starting (workers=${workers}, timeout=${EXECUTE_TIMEOUT_MS}ms)`);
+      const { stdout, stderr } = await runExecute('sweep', args.spec_json, reportDir, workers);
+
+      if (stderr) {
+        log(`execute_sweep stderr (last 500): ${stderr.slice(-500)}`);
+      }
+
+      // Parse JSON from stdout (skip any non-JSON log lines)
+      const jsonStart = stdout.indexOf('{');
+      if (jsonStart === -1) {
+        return err(`execute_sweep: no JSON output. stderr: ${stderr.slice(-500)}`);
+      }
+      const results = JSON.parse(stdout.slice(jsonStart));
+      log(`execute_sweep: done — status=${results.status}, combinations=${results.results?.length || 0}`);
+      return ok(results);
+    } catch (e: unknown) {
+      const error = e as Error & { stderr?: string; code?: string };
+      if (error.code === 'ERR_CHILD_PROCESS_TIMEOUT' || error.code === 'ETIMEDOUT') {
+        return err(`execute_sweep: timed out after ${EXECUTE_TIMEOUT_MS / 1000}s`);
+      }
+      const stderrTail = error.stderr ? `\nstderr: ${error.stderr.slice(-500)}` : '';
+      return err(`execute_sweep failed: ${error.message}${stderrTail}`);
+    }
+  },
+);
+
+server.tool(
+  'swarm_execute_autoresearch',
+  'BLOCKING: Run an autoresearch mutation batch to completion and return results directly (no polling needed). ' +
+  'Takes ~10-40 min depending on seed count × mutations. ' +
+  'Returns the full AutoresearchResults JSON with keepers, rejects, mutation_family_stats, and composite scores. ' +
+  'Use this instead of swarm_trigger_autoresearch + swarm_poll_run when you want to wait for results.',
+  {
+    spec_json: z.string().describe('AutoresearchSpec JSON string. Required: seed_genomes, timerange. Optional: mutations_per_genome, mutation_seed, allowed_families, keeper_sharpe_threshold, parent_sharpe_gate, discard_hashes.'),
+    workers: z.number().optional().describe('Parallel worker count (1-8). Default 4.'),
+    report_dir: z.string().optional().describe('Optional directory to also write results.json to disk.'),
+  },
+  async (args) => {
+    try {
+      // Validate JSON structure
+      const spec = JSON.parse(args.spec_json);
+      if (!spec.seed_genomes || !Array.isArray(spec.seed_genomes) || spec.seed_genomes.length === 0) {
+        return err('Invalid spec: missing or empty seed_genomes array');
+      }
+      if (!spec.timerange) {
+        return err('Invalid spec: missing timerange');
+      }
+
+      const workers = Math.min(Math.max(args.workers || 4, 1), 8);
+      const reportDir = args.report_dir || '';
+      const totalVariants = spec.seed_genomes.length * (spec.mutations_per_genome || 7);
+
+      log(`execute_autoresearch: starting (${spec.seed_genomes.length} seeds × ${spec.mutations_per_genome || 7} = ~${totalVariants} variants, workers=${workers})`);
+      const { stdout, stderr } = await runExecute('autoresearch', args.spec_json, reportDir, workers);
+
+      if (stderr) {
+        log(`execute_autoresearch stderr (last 500): ${stderr.slice(-500)}`);
+      }
+
+      // Parse JSON from stdout
+      const jsonStart = stdout.indexOf('{');
+      if (jsonStart === -1) {
+        return err(`execute_autoresearch: no JSON output. stderr: ${stderr.slice(-500)}`);
+      }
+      const results = JSON.parse(stdout.slice(jsonStart));
+      log(`execute_autoresearch: done — status=${results.status}, keepers=${results.keepers?.length || 0}, rejects=${results.rejects?.length || 0}`);
+      return ok(results);
+    } catch (e: unknown) {
+      const error = e as Error & { stderr?: string; code?: string };
+      if (error.code === 'ERR_CHILD_PROCESS_TIMEOUT' || error.code === 'ETIMEDOUT') {
+        return err(`execute_autoresearch: timed out after ${EXECUTE_TIMEOUT_MS / 1000}s`);
+      }
+      const stderrTail = error.stderr ? `\nstderr: ${error.stderr.slice(-500)}` : '';
+      return err(`execute_autoresearch failed: ${error.message}${stderrTail}`);
     }
   },
 );
