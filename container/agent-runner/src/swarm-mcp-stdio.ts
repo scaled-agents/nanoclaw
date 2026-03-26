@@ -390,9 +390,9 @@ server.tool(
 
 server.tool(
   'swarm_job_results',
-  'Read the full results of a completed matrix sweep job. Returns heatmap, top-K rankings, cluster analysis, and per-combination metrics. Call after swarm_poll_run shows status=completed.',
+  'Read the full results of a completed swarm job. Works for all job types: matrix sweep (returns results[], top_k, heatmap), autoresearch (returns keepers[], rejects[], mutation_family_stats), and batch backtest (returns results[]). Call after swarm_poll_run shows status=completed.',
   {
-    run_id: z.string().describe('Run ID returned by swarm_trigger_run'),
+    run_id: z.string().describe('Run ID returned by swarm_trigger_run, swarm_trigger_autoresearch, or swarm_trigger_batch_backtest'),
   },
   async (args) => {
     try {
@@ -419,7 +419,15 @@ server.tool(
       }
 
       const results = JSON.parse(content);
-      log(`Job results: ${args.run_id} — ${results.results?.length || 0} combinations, status=${results.status}`);
+      // Log summary appropriate to job type
+      const runType = status.run_type || 'unknown';
+      if (results.keepers !== undefined) {
+        // Autoresearch result
+        log(`Job results: ${args.run_id} (${runType}) — keepers=${results.keepers?.length || 0}, rejects=${results.rejects?.length || 0}, total_variants=${results.total_variants || 0}, status=${results.status}`);
+      } else {
+        // Matrix sweep or batch backtest result
+        log(`Job results: ${args.run_id} (${runType}) — ${results.results?.length || 0} combinations, status=${results.status}`);
+      }
       return ok(results);
     } catch (e) {
       return err(`Failed to read job results: ${(e as Error).message}`);
