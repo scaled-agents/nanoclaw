@@ -435,6 +435,12 @@ Check 1 — Strategy deployed:
 Check 2 — Pairs valid:
 - All pairs exist on the exchange — use `show_available_pairs` to verify
 
+Check 2b — Informative pair data:
+- Strategies using `@informative` decorators require data for pairs NOT in the spec's `pairs` list
+- Grep the strategy .py for `@informative` or `informative_pairs` to find additional pair/timeframe requirements
+- Ensure data is downloaded for ALL referenced pairs (trading + informative) before triggering
+- Missing informative data causes `ValueError: Informative dataframe for (PAIR, TF, futures) is empty` at backtest time — swarm preflight does NOT catch this
+
 Check 3 — Config exists:
 - If spec references a config file, verify it exists with `ls`
 

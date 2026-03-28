@@ -133,7 +133,18 @@
       "Bash(tasklist.exe)",
       "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \"\"Name=''node.exe''\"\" | Select-Object ProcessId, CommandLine | Format-Table -AutoSize -Wrap\")",
       "Bash(powershell -Command \"Stop-Process -Id 29988 -Force; Stop-Process -Id 15700 -Force; Stop-Process -Id 29772 -Force\")",
-      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \"\"Name=''node.exe''\"\" | Where-Object { $_.CommandLine -like ''*nanoclaw*'' } | Select-Object ProcessId, CommandLine | Format-Table -AutoSize -Wrap\")"
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \"\"Name=''node.exe''\"\" | Where-Object { $_.CommandLine -like ''*nanoclaw*'' } | Select-Object ProcessId, CommandLine | Format-Table -AutoSize -Wrap\")",
+      "Bash(powershell -Command \"Get-Process -Id 216820 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, Responding\")",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue | Select-Object OwningProcess, State\")",
+      "Bash(ls \"d:/Users/scale/Code/_scaled-agents/nanoclaw/\"*.db \"d:/Users/scale/Code/_scaled-agents/nanoclaw/\"*.sqlite* \"d:/Users/scale/Code/_scaled-agents/nanoclaw/data/\"*.db)",
+      "Bash(sqlite3 \"d:/Users/scale/Code/_scaled-agents/nanoclaw/store/messages.db\" \".tables\")",
+      "Bash(npx --yes better-sqlite3-cli \"d:/Users/scale/Code/_scaled-agents/nanoclaw/store/messages.db\" \".tables\")",
+      "Bash(node -e \"const db=require\\(''better-sqlite3''\\)\\(''d:/Users/scale/Code/_scaled-agents/nanoclaw/store/messages.db''\\);console.log\\(db.prepare\\(\"\"SELECT name FROM sqlite_master WHERE type=''table''\"\"\\).all\\(\\)\\)\")",
+      "Bash(node -e \"const db=require\\(''better-sqlite3''\\)\\(''d:/Users/scale/Code/_scaled-agents/nanoclaw/store/messages.db''\\);console.log\\(JSON.stringify\\(db.prepare\\(''SELECT * FROM scheduled_tasks''\\).all\\(\\), null, 2\\)\\)\")",
+      "Bash(node -e \"const db=require\\(''better-sqlite3''\\)\\(''d:/Users/scale/Code/_scaled-agents/nanoclaw/store/messages.db''\\);const msgs=db.prepare\\(\"\"SELECT id, chat_jid, from_me, processed, body, timestamp FROM messages ORDER BY timestamp DESC LIMIT 10\"\"\\).all\\(\\);console.log\\(JSON.stringify\\(msgs, null, 2\\)\\)\")",
+      "Bash(node -e \"const db=require\\(''better-sqlite3''\\)\\(''d:/Users/scale/Code/_scaled-agents/nanoclaw/store/messages.db''\\);const cols=db.prepare\\(''PRAGMA table_info\\(messages\\)''\\).all\\(\\);console.log\\(cols.map\\(c=>c.name\\).join\\('', ''\\)\\)\")",
+      "Bash(docker ps --filter \"name=nanoclaw\" --format \"table {{.Names}}\\\\t{{.Status}}\\\\t{{.CreatedAt}}\")",
+      "Bash(docker cp nanoclaw-bot-wolfclaw-xrp-1h:/freqtrade/config.json /tmp/ft-bot-config.json)"
     ]
   }
 }
