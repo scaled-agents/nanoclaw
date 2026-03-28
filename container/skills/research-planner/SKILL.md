@@ -922,3 +922,26 @@ Follow the full pipeline: submit → poll → graduate → notify.
    explicitly says "Research {archetype}" (manual override).
 7. **Never poll swarm inline from a message container.** Adhoc research
    submits and exits. Only scheduled tasks (task container) poll inline.
+
+## Feed Integration
+
+After weekly planning cycle:
+  agent_post_status(
+    status: "Weekly plan: {new_campaigns} new campaigns, {active} active, top priority: {archetype} {pair}",
+    tags: ["research", "decision"],
+    context: { new_campaigns, active_campaigns, cold_start_archetypes, top_priority }
+  )
+
+After campaign state change (seeded, researching, graduated, abandoned):
+  agent_post_status(
+    status: "Campaign {id}: {old_state} → {new_state} — {reason}",
+    tags: ["research"],
+    context: { campaign_id, archetype, state, reason }
+  )
+
+After finding seeds:
+  agent_post_status(
+    status: "Seeds found for {archetype}: {count} candidates via {tier}",
+    tags: ["research", "finding"],
+    context: { archetype, seed_count, tier, seed_names }
+  )

@@ -333,6 +333,176 @@ Use available_groups.json to find the JID for a group. The folder name must be c
   },
 );
 
+// ─── Agent Feed ───────────────────────────────────────────────────────
+
+const APHEXDATA_URL = (process.env.APHEXDATA_URL || '').replace(/\/+$/, '');
+const APHEXDATA_API_KEY = process.env.APHEXDATA_API_KEY || '';
+const APHEXDATA_AGENT_ID = process.env.APHEXDATA_AGENT_ID || '';
+
+async function feedFetch(urlPath: string, options?: RequestInit): Promise<any> {
+  if (!APHEXDATA_URL) throw new Error('APHEXDATA_URL not configured');
+  const url = `${APHEXDATA_URL}${urlPath}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (APHEXDATA_API_KEY) headers['Authorization'] = `Bearer ${APHEXDATA_API_KEY}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...headers, ...(options?.headers as Record<string, string>) },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`aphexDATA ${res.status}: ${body}`);
+  }
+  return res.json();
+}
+
+function getRelativeTime(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+server.tool(
+  'agent_post_status',
+  "Post a short status update to the shared agent feed. Other agents and the console dashboard can see these updates. Use this to broadcast what you're currently working on, findings, progress, and decisions.",
+  {
+    status: z.string().max(280).describe('Short status message, max 280 characters. What are you doing right now?'),
+    tags: z.array(z.string()).describe('1-3 tags categorizing this update. Use: research, auto_mode, deployment, graduation, triage, evolution, error, finding, decision'),
+    context: z.object({
+      task: z.string().optional().describe('Current task name'),
+      progress: z.string().optional().describe("Progress indicator, e.g. '30/200 combinations'"),
+      archetype: z.string().optional().describe('Archetype being worked on'),
+      pair: z.string().optional().describe('Pair being tested'),
+      timeframe: z.string().optional().describe('Timeframe'),
+      finding: z.string().optional().describe('Key finding or result'),
+      metric: z.record(z.string(), z.unknown()).optional().describe('Any relevant metric, e.g. {sharpe: 0.62, sortino: 1.1}'),
+    }).optional().describe('Optional structured context for this update'),
+  },
+  async (args) => {
+    try {
+      const status = args.status.slice(0, 280);
+      const agentName = process.env.AGENT_NAME || groupFolder || 'unknown';
+
+      const body = {
+        agent_id: APHEXDATA_AGENT_ID || undefined,
+        verb_id: 'status_update',
+        verb_category: 'communication',
+        object_type: 'report',
+        object_id: agentName,
+        result_data: {
+          status,
+          tags: args.tags,
+          agent_name: agentName,
+          group_folder: groupFolder,
+          context: args.context || {},
+        },
+        context: {
+          source: 'agent_feed',
+          agent_name: agentName,
+        },
+        trust_level: 'agent_asserted',
+      };
+
+      const data = await feedFetch('/api/v1/events', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            message: `Status posted: "${status}"`,
+            tags: args.tags,
+            agent: agentName,
+            event_id: data.id,
+          }, null, 2),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `Failed to post status: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  'agent_read_feed',
+  "Read the shared agent feed — see what all agents have posted recently. Use this before starting work to avoid duplicating what another agent is already doing.",
+  {
+    since_hours: z.number().optional().describe('How many hours back to look. Default: 4'),
+    limit: z.number().optional().describe('Maximum number of updates to return. Default: 20'),
+    tags: z.array(z.string()).optional().describe("Optional: filter by tags (e.g. ['research'] to see only research updates)"),
+    agent_name: z.string().optional().describe('Optional: filter by specific agent name'),
+  },
+  async (args) => {
+    try {
+      const sinceHours = args.since_hours || 4;
+      const limit = args.limit || 20;
+      const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000).toISOString();
+
+      const params = new URLSearchParams({
+        verb_id: 'status_update',
+        from: since,
+        limit: limit.toString(),
+      });
+
+      if (args.agent_name) {
+        params.set('object_id', args.agent_name);
+      }
+
+      const data = await feedFetch(`/api/v1/events?${params.toString()}`);
+
+      let events = data.events || data.data || data || [];
+      if (!Array.isArray(events)) events = [];
+
+      // Apply tag filter client-side
+      if (args.tags && args.tags.length > 0) {
+        events = events.filter((e: any) => {
+          const eventTags = e.result_data?.tags || [];
+          return args.tags!.some(tag => eventTags.includes(tag));
+        });
+      }
+
+      const feed = events.map((e: any) => ({
+        agent: e.result_data?.agent_name || e.object_id,
+        status: e.result_data?.status,
+        tags: e.result_data?.tags,
+        context: e.result_data?.context,
+        timestamp: e.occurred_at,
+        relative: getRelativeTime(e.occurred_at),
+      }));
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            feed,
+            count: feed.length,
+            since,
+            note: feed.length === 0
+              ? "No recent updates in the feed. You're the first to post."
+              : `${feed.length} updates from the last ${sinceHours} hours.`,
+          }, null, 2),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `Failed to read feed: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
 // Start the stdio transport
 const transport = new StdioServerTransport();
 await server.connect(transport);

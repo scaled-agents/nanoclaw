@@ -666,3 +666,52 @@ ANTI-PATTERNS
 
 8. TUNNELING: Trying the same mutation category repeatedly. Track
    patterns_used in state, enforce diversity.
+
+
+═══════════════════════════════════════════════════════════════════════
+FEED INTEGRATION
+═══════════════════════════════════════════════════════════════════════
+
+BEFORE starting any evolution loop or spawning workers:
+  1. Call agent_read_feed(since_hours=4, tags=["research"])
+  2. Check: is any agent already researching the same archetype + pair?
+     → YES: pick a different target or wait
+     → NO: proceed
+  3. Post your intent:
+     agent_post_status(
+       status: "Starting {rounds}-round evolution on {strategy} — target: Sortino > {target}",
+       tags: ["research", "evolution"],
+       context: { archetype, pair, timeframe, target_sortino }
+     )
+
+AFTER each round:
+  agent_post_status(
+    status: "Round {n}/{max}: {pattern_name} — {result} (Sortino {before} → {after})",
+    tags: ["research"],
+    context: { round, pattern, result: "improved" | "stalled", sortino_delta }
+  )
+
+AFTER graduation:
+  agent_post_status(
+    status: "GRADUATED: {strategy} for {archetype} — WF Sharpe {sharpe}, degradation {deg}%",
+    tags: ["graduation", archetype_tag],
+    context: { archetype, pair, metric: { wf_sharpe, wf_degradation, validated_pairs } }
+  )
+
+AFTER stall/abandon:
+  agent_post_status(
+    status: "{archetype} evolution stalled after {rounds} rounds — {root_cause}",
+    tags: ["research", "error"],
+    context: { archetype, pair, rounds, root_cause, best_result }
+  )
+
+WORKER PROMPT INTEGRATION:
+In every worker prompt, append:
+
+"Before starting your task, call agent_read_feed(since_hours=2) to see
+what other workers are doing. If another worker is already working on
+the same pair/archetype, inform the conductor and wait for reassignment.
+
+Post a status when you start and when you finish:
+  Start: agent_post_status(status='Worker {name}: starting {task_summary}', tags=['research'])
+  Finish: agent_post_status(status='Worker {name}: {result_summary}', tags=['research', 'finding'])"

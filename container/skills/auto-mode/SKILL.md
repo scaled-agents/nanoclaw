@@ -1355,3 +1355,29 @@ supports this — just another `schedule_task`. Deferred until tooling exists.
 10. **FULL-SIZE INTO REGIME FLIPS**: A regime that just flipped hasn't proven
     conviction yet. Conviction-weighted sizing naturally handles this — low
     conviction = small position. The position grows as conviction builds.
+
+## Feed Integration
+
+After each health check that produces a STATE CHANGE (not silent ticks):
+  agent_post_status(
+    status: "{deployment_id} {old_state} → {new_state} — {reason}",
+    tags: ["auto_mode", "deployment"],
+    context: { pair, archetype, composite, conviction }
+  )
+
+After circuit breaker activation:
+  agent_post_status(
+    status: "CIRCUIT BREAKER — portfolio DD {dd}%, all deployments paused",
+    tags: ["auto_mode", "error"],
+    context: { dd_pct, deployments_paused: count }
+  )
+
+After logging missed opportunities with new high-priority gaps:
+  agent_post_status(
+    status: "{count} missed opportunities — top gap: {archetype} {pair} {tf} (composite {score})",
+    tags: ["auto_mode", "finding"],
+    context: { top_gap_archetype, top_gap_pair, top_gap_composite }
+  )
+
+Do NOT post on silent/clean ticks. Only post when something changed
+or something noteworthy was detected.
