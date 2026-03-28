@@ -89,7 +89,12 @@ function loadDeployments(): any[] {
   try {
     if (!fs.existsSync(GROUPS_DIR)) return [];
     for (const folder of fs.readdirSync(GROUPS_DIR)) {
-      const deploymentsFile = path.join(GROUPS_DIR, folder, 'auto-mode', 'deployments.json');
+      const deploymentsFile = path.join(
+        GROUPS_DIR,
+        folder,
+        'auto-mode',
+        'deployments.json',
+      );
       if (!fs.existsSync(deploymentsFile)) continue;
       try {
         const data = JSON.parse(fs.readFileSync(deploymentsFile, 'utf-8'));
@@ -113,7 +118,9 @@ function loadGroupsFromDb(db: Database): any[] {
       folder: r.folder,
       trigger_pattern: r.trigger_pattern,
       added_at: r.added_at,
-      container_config: r.container_config ? JSON.parse(r.container_config) : {},
+      container_config: r.container_config
+        ? JSON.parse(r.container_config)
+        : {},
       requires_trigger: r.requires_trigger === 1,
       is_main: r.is_main === 1,
     }));
@@ -168,26 +175,37 @@ async function fetchResearchData(config: SyncConfig): Promise<{
   cellGrid: any[];
   missedOpportunities: any[];
 }> {
-  const empty = { roster: [], campaigns: [], cellGrid: [], missedOpportunities: [] };
+  const empty = {
+    roster: [],
+    campaigns: [],
+    cellGrid: [],
+    missedOpportunities: [],
+  };
   try {
-    const res = await fetch(`${config.aphexdataUrl}/api/v1/research/dashboard`, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': config.aphexdataApiKey,
+    const res = await fetch(
+      `${config.aphexdataUrl}/api/v1/research/dashboard`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': config.aphexdataApiKey,
+        },
       },
-    });
+    );
     if (!res.ok) return empty;
     const data = (await res.json()) as Record<string, any>;
     return {
       roster: data.leaderboard ?? [],
       campaigns: data.recent_experiments ?? [],
       cellGrid: data.discovery?.regime_coverage
-        ? Object.entries(data.discovery.regime_coverage).map(([regime, count]) => ({
-            archetype: regime,
-            coverage: count,
-          }))
+        ? Object.entries(data.discovery.regime_coverage).map(
+            ([regime, count]) => ({
+              archetype: regime,
+              coverage: count,
+            }),
+          )
         : [],
-      missedOpportunities: data.gaps?.map((gap: string) => ({ description: gap })) ?? [],
+      missedOpportunities:
+        data.gaps?.map((gap: string) => ({ description: gap })) ?? [],
     };
   } catch {
     return empty;
@@ -219,10 +237,7 @@ async function pushToConsole(
         `[console-sync] Push failed (${res.status}): ${await res.text()}`,
       );
     } catch (err) {
-      logger.error(
-        { err, attempt: attempt + 1 },
-        `[console-sync] Push error`,
-      );
+      logger.error({ err, attempt: attempt + 1 }, `[console-sync] Push error`);
     }
 
     if (attempt < MAX_RETRIES - 1) {
