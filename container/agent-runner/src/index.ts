@@ -633,6 +633,8 @@ async function main(): Promise<void> {
 
   // Query loop: run query → wait for IPC message → run new query → repeat
   let resumeAt: string | undefined;
+  const SESSION_ROTATION_THRESHOLD = 50;
+  let messageCount = 0;
   try {
     while (true) {
       log(`Starting query (session: ${sessionId || 'new'}, resumeAt: ${resumeAt || 'latest'})...`);
@@ -643,6 +645,18 @@ async function main(): Promise<void> {
       }
       if (queryResult.lastAssistantUuid) {
         resumeAt = queryResult.lastAssistantUuid;
+      }
+
+      // Track message count and rotate session to prevent context bloat.
+      // Each query = 1 user turn + 1 assistant turn.  After 50 turns the
+      // context becomes too large for efficient resume.  The PreCompact hook
+      // archives transcripts automatically, so history is preserved.
+      messageCount++;
+      if (messageCount >= SESSION_ROTATION_THRESHOLD) {
+        log(`Session rotation: ${messageCount} messages reached, next query starts fresh session`);
+        sessionId = undefined;
+        resumeAt = undefined;
+        messageCount = 0;
       }
 
       // If _close was consumed during the query, exit immediately.

@@ -125,28 +125,31 @@ function buildVolumeMounts(
   );
   fs.mkdirSync(groupSessionsDir, { recursive: true });
   const settingsFile = path.join(groupSessionsDir, 'settings.json');
-  if (!fs.existsSync(settingsFile)) {
-    fs.writeFileSync(
-      settingsFile,
-      JSON.stringify(
-        {
-          env: {
-            // Enable agent swarms (subagent orchestration)
-            // https://code.claude.com/docs/en/agent-teams#orchestrate-teams-of-claude-code-sessions
-            CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
-            // Load CLAUDE.md from additional mounted directories
-            // https://code.claude.com/docs/en/memory#load-memory-from-additional-directories
-            CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
-            // Enable Claude's memory feature (persists user preferences between sessions)
-            // https://code.claude.com/docs/en/memory#manage-auto-memory
-            CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
-          },
+  // Always write (overwrite) so new env vars propagate to existing groups on restart.
+  fs.writeFileSync(
+    settingsFile,
+    JSON.stringify(
+      {
+        env: {
+          // Enable agent swarms (subagent orchestration)
+          // https://code.claude.com/docs/en/agent-teams#orchestrate-teams-of-claude-code-sessions
+          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+          // Load CLAUDE.md from additional mounted directories
+          // https://code.claude.com/docs/en/memory#load-memory-from-additional-directories
+          CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+          // Enable Claude's memory feature (persists user preferences between sessions)
+          // https://code.claude.com/docs/en/memory#manage-auto-memory
+          CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
+          // Raise the per-response output token limit above the 32K SDK default.
+          // Without this, long session-resume catch-up responses (or auto-mode ticks
+          // with 31+ accumulated turns) overflow the ceiling and the agent errors.
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000',
         },
-        null,
-        2,
-      ) + '\n',
-    );
-  }
+      },
+      null,
+      2,
+    ) + '\n',
+  );
 
   // Sync skills from container/skills/ into each group's .claude/skills/
   const skillsSrc = path.join(process.cwd(), 'container', 'skills');
@@ -333,6 +336,14 @@ function buildContainerArgs(
     const val = process.env[key] || ofEnv[key];
     if (val) args.push('-e', `${key}=${val}`);
   }
+
+  // Raise the per-response output token ceiling above the SDK default (32K).
+  // Long session-resume catch-ups (accumulated auto-mode ticks, research cycles)
+  // can easily exceed 32K, causing "response exceeded 32000 output token maximum".
+  // Allow overriding via host env so it can be tuned without a code change.
+  const maxOutputTokens =
+    process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || '64000';
+  args.push('-e', `CLAUDE_CODE_MAX_OUTPUT_TOKENS=${maxOutputTokens}`);
 
   // Swarm: always use the container-side path (matches the bind mount).
   // Do NOT forward host SWARM_REPORT_DIR — it may be a host-side absolute
