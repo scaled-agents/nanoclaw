@@ -211,10 +211,12 @@ function ensureSwarmConfig(groupFolder: string, specPath: string): string {
   if (fs.existsSync(groupConfig)) {
     fs.mkdirSync(swarmConfigDir, { recursive: true });
     fs.copyFileSync(groupConfig, swarmConfigPath);
-    // freqtrade 2026.2 requires price_side="other" for lookahead analysis
+    // Patch config for compatibility and data alignment
     try {
       const cfg = JSON.parse(fs.readFileSync(swarmConfigPath, 'utf-8'));
       let patched = false;
+
+      // freqtrade 2026.2 requires price_side="other" for lookahead analysis
       if (!cfg.entry_pricing) cfg.entry_pricing = {};
       if (cfg.entry_pricing.price_side !== 'other') {
         cfg.entry_pricing.price_side = 'other';
@@ -225,12 +227,29 @@ function ensureSwarmConfig(groupFolder: string, specPath: string): string {
         cfg.exit_pricing.price_side = 'other';
         patched = true;
       }
+
+      // Sync pair_whitelist with spec pairs so strategies using
+      // @informative decorators only request data for pairs we download.
+      try {
+        const spec = JSON.parse(fs.readFileSync(specPath, 'utf-8'));
+        if (Array.isArray(spec.pairs) && spec.pairs.length > 0) {
+          if (!cfg.exchange) cfg.exchange = {};
+          const oldWhitelist = cfg.exchange.pair_whitelist || [];
+          cfg.exchange.pair_whitelist = spec.pairs;
+          if (JSON.stringify(oldWhitelist) !== JSON.stringify(spec.pairs)) {
+            patched = true;
+            logger.info(
+              { old: oldWhitelist, new: spec.pairs },
+              'Synced config pair_whitelist with spec pairs',
+            );
+          }
+        }
+      } catch {
+        // Spec read failed — keep original whitelist
+      }
+
       if (patched) {
         fs.writeFileSync(swarmConfigPath, JSON.stringify(cfg, null, 2));
-        logger.info(
-          { dst: swarmConfigPath },
-          'Patched price_side to "other" for freqtrade 2026.2',
-        );
       }
     } catch {
       // Non-critical — config still usable without patch

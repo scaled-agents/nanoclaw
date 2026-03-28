@@ -251,7 +251,7 @@ server.tool(
           identity: { genome_id: `selftest_${Date.now()}`, name: 'BbandsRsiAdx', version: '1.0' },
         },
         pairs: ['BTC/USDT:USDT'],
-        timeframes: ['1h'],
+        timeframes: ['1h', '4h'],
         timerange: '20250901-20260301',
         n_walkforward_windows: 2,
         skip_hyperopt: true,
