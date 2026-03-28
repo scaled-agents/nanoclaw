@@ -5,7 +5,7 @@ description: >
   (auto-mode) to targeted autoresearch (FreqSwarm), manages multi-archetype
   coverage, handles cold-start bootstrapping, and graduates strategies into
   auto-mode's deployment roster. Trigger on: "research priorities",
-  "research status", "research plan", "run research planner", "fill the gap",
+  "research status", "research plan", "run research planner", "fill the gap", "fill strategy gaps",
   "bootstrap nova", "scan nova", "graduate strategy", "research <archetype>",
   "approve extra round", "abandon campaign".
 ---
@@ -735,8 +735,9 @@ PART 8: COMMAND TABLE
 |-----------|-------------|
 | "Show research priorities" | Query last 7 days of `missed_opportunity_daily_summary` from aphexDATA + read `missed-opportunities.json`. Rank cells by `hit_count × avg_composite`. Display table: archetype, pair, timeframe, hit count, avg composite, campaign state (if exists). Highlight archetypes with zero staged strategies in roster. |
 | "Show research status" | Read `campaigns.json`. Display each active campaign: state, archetype, pairs, rounds used/max, keepers found, best Sharpe, budget remaining. Include cold-start mode indicator. |
-| "Research {archetype}" | Create campaign immediately for the specified archetype (skip detection threshold). Aggregate all missed-opportunity cells for that archetype as targets. Run seed discovery. If seeds found, trigger autoresearch within budget. |
-| "Run research planner" | Execute the full daily planning cycle now (same as the scheduled daily task). |
+| "Research {archetype}" | **Adhoc (non-blocking).** Create campaign immediately for the specified archetype (skip detection threshold). Aggregate all missed-opportunity cells for that archetype as targets. Run seed discovery (Tier 3 uses ClawTeam fire-and-forget). If seeds found, submit `swarm_trigger_autoresearch` and set campaign to RESEARCHING. **Do NOT poll for results inline** — reply "Research submitted for {archetype}, tracking in next poll cycle" and exit. The 4-hourly poll handles result polling, graduation, and near-miss detection. |
+| "Fill strategy gaps" / "Fill the gap" | **Adhoc (non-blocking).** Run the detection + planning phase of the daily cycle: read `missed-opportunities.json`, identify all archetypes meeting threshold (freq ≥ 3 OR avg_composite ≥ 4.0 OR zero coverage in cold-start), create campaigns, discover seeds, submit autoresearch for each. **Same non-blocking protocol as "Research {archetype}"** — submit all, reply with summary table (archetype, seeds found, submitted Y/N), exit. The 4-hourly poll tracks all submitted campaigns. |
+| "Run research planner" | Execute the full daily planning cycle now (same as the scheduled daily task). Includes detection, planning, polling active campaigns, and graduation. When triggered via user message, follows non-blocking adhoc protocol: submits new campaigns without polling inline. |
 | "Bootstrap nova" | Run Tier 1 nova scan on all untagged .py strategies. Classify by archetype. Store in `nova-scan.json`. Report coverage map: how many strategies matched each archetype. |
 | "Graduate {strategy} for {archetype}" | Manual graduation: verify walk-forward results, write header tags to strategy file, register in sdna registry, log to aphexDATA. |
 | "Approve extra round {campaign_id}" | Near-miss campaign gets +1 autoresearch round. Campaign moves from `near_miss` back to `researching`. Triggers next round immediately. |
@@ -867,6 +868,21 @@ swarm_autoresearch_history(name) → previously tried mutations
 → extract genome IDs into discard_hashes[]
 ```
 
+### Adhoc vs Scheduled Execution
+
+**Adhoc (user message: "Research {archetype}")** — runs in the message container.
+The message slot must stay responsive. Follow this protocol:
+1. Create campaign + aggregate targets (~1 min)
+2. Run seed discovery — Tier 1/2 inline, Tier 3 via `team_spawn_worker` fire-and-forget (~5 min max)
+3. Submit `swarm_trigger_autoresearch` (non-blocking, returns run_id)
+4. Update campaign state to RESEARCHING, save run_id
+5. Reply to user: "Research submitted for {archetype}. Tracking in next poll cycle."
+6. **Exit.** Do NOT call `swarm_poll_run` in a loop. The 4-hourly poll handles it.
+
+**Scheduled (daily planner / 4h poll)** — runs in the task container.
+Can poll inline because the task slot is independent of user messages.
+Follow the full pipeline: submit → poll → graduate → notify.
+
 ### Anti-Patterns
 
 1. **Never deploy.** The planner researches and tags. Auto-mode deploys.
@@ -877,3 +893,5 @@ swarm_autoresearch_history(name) → previously tried mutations
 5. **Never auto-abandon near-misses.** Always ask the user first.
 6. **Never create campaigns for cells below threshold.** Unless the user
    explicitly says "Research {archetype}" (manual override).
+7. **Never poll swarm inline from a message container.** Adhoc research
+   submits and exits. Only scheduled tasks (task container) poll inline.
