@@ -13,10 +13,22 @@
 import fs from 'fs';
 import path from 'path';
 import { Database } from 'better-sqlite3';
+import { readEnvFile } from './env.js';
+import { logger } from './logger.js';
+import { GROUPS_DIR } from './config.js';
 
 const SYNC_INTERVAL_MS = 60_000;
 const MAX_RETRIES = 3;
-const CURSOR_FILE = 'data/console-sync/cursor.json';
+const CURSOR_FILE = 'console-sync/cursor.json';
+
+const CONSOLE_ENV_KEYS = [
+  'CONSOLE_SUPABASE_URL',
+  'CONSOLE_SUPABASE_ANON_KEY',
+  'CONSOLE_SYNC_KEY',
+  'CONSOLE_OPERATOR_ID',
+  'APHEXDATA_URL',
+  'APHEXDATA_API_KEY',
+];
 
 interface SyncCursor {
   last_event_id: string | null;
@@ -26,10 +38,12 @@ interface SyncCursor {
 
 interface SyncConfig {
   supabaseUrl: string;
+  supabaseAnonKey: string;
   syncKey: string;
   operatorId: string;
   dataDir: string;
   aphexdataUrl: string;
+  aphexdataApiKey: string;
 }
 
 function loadCursor(dataDir: string): SyncCursor {
@@ -54,7 +68,7 @@ function saveCursor(dataDir: string, cursor: SyncCursor): void {
 }
 
 function loadBotStatuses(dataDir: string): any[] {
-  const botsDir = path.join(dataDir, 'data/bot-runner/bots');
+  const botsDir = path.join(dataDir, 'bot-runner/bots');
   if (!fs.existsSync(botsDir)) return [];
   return fs
     .readdirSync(botsDir)
@@ -69,21 +83,40 @@ function loadBotStatuses(dataDir: string): any[] {
     .filter(Boolean);
 }
 
-function loadDeployments(dataDir: string): any[] {
-  const deploymentsFile = path.join(dataDir, 'data/auto-mode/deployments.json');
-  if (!fs.existsSync(deploymentsFile)) return [];
+function loadDeployments(): any[] {
+  // Deployments live under groups/<folder>/auto-mode/deployments.json
+  const allDeployments: any[] = [];
   try {
-    const data = JSON.parse(fs.readFileSync(deploymentsFile, 'utf-8'));
-    return data.deployments || [];
+    if (!fs.existsSync(GROUPS_DIR)) return [];
+    for (const folder of fs.readdirSync(GROUPS_DIR)) {
+      const deploymentsFile = path.join(GROUPS_DIR, folder, 'auto-mode', 'deployments.json');
+      if (!fs.existsSync(deploymentsFile)) continue;
+      try {
+        const data = JSON.parse(fs.readFileSync(deploymentsFile, 'utf-8'));
+        if (data.deployments) allDeployments.push(...data.deployments);
+      } catch {
+        // skip malformed files
+      }
+    }
   } catch {
-    return [];
+    // ignore
   }
+  return allDeployments;
 }
 
 function loadGroupsFromDb(db: Database): any[] {
   try {
-    const stmt = db.prepare('SELECT * FROM chats WHERE registered = 1');
-    return stmt.all();
+    const rows = db.prepare('SELECT * FROM registered_groups').all() as any[];
+    return rows.map((r: any) => ({
+      jid: r.jid,
+      name: r.name,
+      folder: r.folder,
+      trigger_pattern: r.trigger_pattern,
+      added_at: r.added_at,
+      container_config: r.container_config ? JSON.parse(r.container_config) : {},
+      requires_trigger: r.requires_trigger === 1,
+      is_main: r.is_main === 1,
+    }));
   } catch {
     return [];
   }
@@ -99,7 +132,7 @@ function loadTasksFromDb(db: Database): any[] {
 }
 
 async function fetchEventsIncremental(
-  aphexdataUrl: string,
+  config: SyncConfig,
   cursor: SyncCursor,
 ): Promise<{ events: any[]; newCursorEventId: string | null }> {
   try {
@@ -107,8 +140,11 @@ async function fetchEventsIncremental(
     if (cursor.last_event_at) {
       params.set('from', cursor.last_event_at);
     }
-    const res = await fetch(`${aphexdataUrl}/api/v1/events?${params}`, {
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch(`${config.aphexdataUrl}/api/v1/events?${params}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': config.aphexdataApiKey,
+      },
     });
     if (!res.ok) return { events: [], newCursorEventId: cursor.last_event_id };
     const { events } = (await res.json()) as { events: any[] };
@@ -126,32 +162,35 @@ async function fetchEventsIncremental(
   }
 }
 
-async function fetchResearchData(aphexdataUrl: string): Promise<{
+async function fetchResearchData(config: SyncConfig): Promise<{
   roster: any[];
   campaigns: any[];
   cellGrid: any[];
   missedOpportunities: any[];
 }> {
+  const empty = { roster: [], campaigns: [], cellGrid: [], missedOpportunities: [] };
   try {
-    const res = await fetch(`${aphexdataUrl}/api/v1/research`, {
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch(`${config.aphexdataUrl}/api/v1/research/dashboard`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': config.aphexdataApiKey,
+      },
     });
-    if (!res.ok)
-      return {
-        roster: [],
-        campaigns: [],
-        cellGrid: [],
-        missedOpportunities: [],
-      };
+    if (!res.ok) return empty;
     const data = (await res.json()) as Record<string, any>;
     return {
-      roster: data.roster ?? data.leaderboard ?? [],
-      campaigns: data.campaigns ?? [],
-      cellGrid: data.cell_grid ?? data.cellGrid ?? [],
-      missedOpportunities: data.missed_opportunities ?? [],
+      roster: data.leaderboard ?? [],
+      campaigns: data.recent_experiments ?? [],
+      cellGrid: data.discovery?.regime_coverage
+        ? Object.entries(data.discovery.regime_coverage).map(([regime, count]) => ({
+            archetype: regime,
+            coverage: count,
+          }))
+        : [],
+      missedOpportunities: data.gaps?.map((gap: string) => ({ description: gap })) ?? [],
     };
   } catch {
-    return { roster: [], campaigns: [], cellGrid: [], missedOpportunities: [] };
+    return empty;
   }
 }
 
@@ -167,6 +206,8 @@ async function pushToConsole(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          apikey: config.supabaseAnonKey,
+          Authorization: `Bearer ${config.supabaseAnonKey}`,
           'X-Sync-Key': config.syncKey,
         },
         body: JSON.stringify(payload),
@@ -174,13 +215,13 @@ async function pushToConsole(
       if (res.ok || res.status === 207) {
         return true;
       }
-      console.error(
+      logger.error(
         `[console-sync] Push failed (${res.status}): ${await res.text()}`,
       );
     } catch (err) {
-      console.error(
-        `[console-sync] Push error (attempt ${attempt + 1}/${MAX_RETRIES}):`,
-        err,
+      logger.error(
+        { err, attempt: attempt + 1 },
+        `[console-sync] Push error`,
       );
     }
 
@@ -197,37 +238,42 @@ export async function runConsoleSync(
   db: Database,
   dataDir: string,
 ): Promise<void> {
-  const supabaseUrl = process.env.CONSOLE_SUPABASE_URL;
-  const syncKey = process.env.CONSOLE_SYNC_KEY;
-  const operatorId = process.env.CONSOLE_OPERATOR_ID;
-  const aphexdataUrl = process.env.APHEXDATA_URL || 'http://localhost:3100';
+  const env = readEnvFile(CONSOLE_ENV_KEYS);
+  const supabaseUrl = env.CONSOLE_SUPABASE_URL;
+  const supabaseAnonKey = env.CONSOLE_SUPABASE_ANON_KEY;
+  const syncKey = env.CONSOLE_SYNC_KEY;
+  const operatorId = env.CONSOLE_OPERATOR_ID;
+  const aphexdataUrl = env.APHEXDATA_URL || 'http://localhost:3100';
+  const aphexdataApiKey = env.APHEXDATA_API_KEY || '';
 
-  if (!supabaseUrl || !syncKey || !operatorId) {
+  if (!supabaseUrl || !syncKey || !operatorId || !supabaseAnonKey) {
     // Console sync not configured — skip silently
     return;
   }
 
   const config: SyncConfig = {
     supabaseUrl,
+    supabaseAnonKey,
     syncKey,
     operatorId,
     dataDir,
     aphexdataUrl,
+    aphexdataApiKey,
   };
   const cursor = loadCursor(dataDir);
 
   // Collect local data
   const bots = loadBotStatuses(dataDir);
-  const deployments = loadDeployments(dataDir);
+  const deployments = loadDeployments();
   const groups = loadGroupsFromDb(db);
   const tasks = loadTasksFromDb(db);
 
   // Fetch from aphexDATA (incremental for events)
   const { events, newCursorEventId } = await fetchEventsIncremental(
-    aphexdataUrl,
+    config,
     cursor,
   );
-  const research = await fetchResearchData(aphexdataUrl);
+  const research = await fetchResearchData(config);
 
   // Build payload
   const payload = {
@@ -261,11 +307,21 @@ export async function runConsoleSync(
             events[events.length - 1].recorded_at)
           : cursor.last_event_at,
     });
-    console.log(
-      `[console-sync] Pushed ${bots.length} bots, ${events.length} events, ${deployments.length} deployments`,
+    logger.info(
+      {
+        bots: bots.length,
+        groups: groups.length,
+        tasks: tasks.length,
+        deployments: deployments.length,
+        events: events.length,
+        roster: research.roster.length,
+        campaigns: research.campaigns.length,
+        cellGrid: research.cellGrid.length,
+      },
+      '[console-sync] Push complete',
     );
   } else {
-    console.warn(
+    logger.warn(
       '[console-sync] Push failed after retries — will retry next cycle',
     );
   }
@@ -276,21 +332,25 @@ export async function runConsoleSync(
  * Non-blocking — runs in the background via setInterval.
  */
 export function startConsoleSync(db: Database, dataDir: string): void {
-  if (!process.env.CONSOLE_SUPABASE_URL) {
-    console.log('[console-sync] CONSOLE_SUPABASE_URL not set — sync disabled');
+  const env = readEnvFile(CONSOLE_ENV_KEYS);
+  if (!env.CONSOLE_SUPABASE_URL) {
+    logger.info('[console-sync] CONSOLE_SUPABASE_URL not set — sync disabled');
     return;
   }
 
-  console.log('[console-sync] Starting sync loop (60s interval)');
+  logger.info(
+    { url: env.CONSOLE_SUPABASE_URL, operatorId: env.CONSOLE_OPERATOR_ID },
+    '[console-sync] Starting sync loop (60s interval)',
+  );
 
   // Run immediately, then every 60s
   runConsoleSync(db, dataDir).catch((err) =>
-    console.error('[console-sync] Initial sync error:', err),
+    logger.error({ err }, '[console-sync] Initial sync error'),
   );
 
   setInterval(() => {
     runConsoleSync(db, dataDir).catch((err) =>
-      console.error('[console-sync] Sync error:', err),
+      logger.error({ err }, '[console-sync] Sync error'),
     );
   }, SYNC_INTERVAL_MS);
 }

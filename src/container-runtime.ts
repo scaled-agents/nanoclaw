@@ -107,7 +107,11 @@ export function cleanupOrphans(): void {
       `${CONTAINER_RUNTIME_BIN} ps --filter name=nanoclaw- --format '{{.Names}}'`,
       { stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8' },
     );
-    const allContainers = output.trim().split('\n').filter(Boolean);
+    const allContainers = output
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((name) => name.replace(/^'+|'+$/g, ''));
     const bots = allContainers.filter((name) =>
       name.startsWith('nanoclaw-bot-'),
     );
