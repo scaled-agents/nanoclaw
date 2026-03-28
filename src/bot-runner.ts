@@ -712,17 +712,21 @@ function recoverExistingBots(): void {
           // file after a Docker Desktop restart).
           let actualPort = status.api_port;
           try {
-            const portOutput = execSync(
-              `docker port ${containerName} 8080`,
-              { encoding: 'utf-8', timeout: 5000 },
-            ).trim();
+            const portOutput = execSync(`docker port ${containerName} 8080`, {
+              encoding: 'utf-8',
+              timeout: 5000,
+            }).trim();
             // Output like "8080/tcp -> 0.0.0.0:8085\n8080/tcp -> [::]:8085"
             const match = portOutput.match(/:(\d+)/);
             if (match) {
               actualPort = parseInt(match[1], 10);
               if (actualPort !== status.api_port) {
                 logger.info(
-                  { deploymentId, oldPort: status.api_port, newPort: actualPort },
+                  {
+                    deploymentId,
+                    oldPort: status.api_port,
+                    newPort: actualPort,
+                  },
                   'Port changed after Docker restart — using actual port',
                 );
               }
@@ -825,11 +829,19 @@ async function healthCheckBots(): Promise<void> {
       // is in STOPPED state (happens after Docker Desktop restart).
       if (bot.signalsActive && bot.password) {
         try {
-          const stateRes = await ftApiCall(bot.port, 'GET', 'state', bot.password);
+          const stateRes = await ftApiCall(
+            bot.port,
+            'GET',
+            'state',
+            bot.password,
+          );
           if (stateRes.status === 200) {
             const state = JSON.parse(stateRes.body);
             if (state.state === 'stopped') {
-              logger.info({ deploymentId }, 'Bot is stopped but signals_active=true — sending start');
+              logger.info(
+                { deploymentId },
+                'Bot is stopped but signals_active=true — sending start',
+              );
               await ftApiCall(bot.port, 'POST', 'start', bot.password);
             }
           }

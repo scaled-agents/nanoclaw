@@ -447,6 +447,19 @@ Check 3 — Config exists:
 Check 4 — Genome complete:
 - `identity.name` field populated (pydantic rejects otherwise)
 
+Check 5 — Seed genome schema (native sdna only):
+- Every seed genome in `seed_genomes[]` must satisfy the FreqSwarm pydantic schema:
+  - `identity.genome_id` — required (string, use content hash if generating)
+  - `identity.name` — required
+  - `signal_stack[].conditions[].column` — required (NOT `field`)
+  - `signal_stack[].conditions[].value` — required for ALL conditions (numeric literal or column string reference, NOT `value_field`)
+  - `signal_stack[].conditions[].operator` — required (lt, gt, lte, gte, crosses_above, crosses_below)
+  - `filters[].condition` — singular (NOT `conditions`)
+  - `risk_model.stoploss` — must be a negative float (e.g., -0.05, NOT "-5%" or "0.05")
+  - `risk_model.trailing_stop` — boolean if present
+  - `hyperoptable_parameters[]` — each entry requires: `param_type` (float/int/categorical), `min_val`, `max_val`, `default`, `space` (buy/sell/protection)
+- Schema errors are caught by FreqSwarm at spec load time — fix before submitting, not after
+
 If ANY check fails, fix it BEFORE triggering. Do NOT submit and hope.
 
 **Quality thresholds:**

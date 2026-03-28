@@ -199,7 +199,13 @@ async function runTask(
         model: resolveModel(task.prompt),
       },
       (proc, containerName) =>
-        deps.onProcess(task.chat_jid, proc, containerName, task.group_folder, true),
+        deps.onProcess(
+          task.chat_jid,
+          proc,
+          containerName,
+          task.group_folder,
+          true,
+        ),
       async (streamedOutput: ContainerOutput) => {
         if (streamedOutput.result) {
           result = streamedOutput.result;

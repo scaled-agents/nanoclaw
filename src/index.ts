@@ -325,7 +325,13 @@ async function runAgent(
         assistantName: ASSISTANT_NAME,
       },
       (proc, containerName) =>
-        queue.registerProcess(chatJid, proc, containerName, group.folder, false),
+        queue.registerProcess(
+          chatJid,
+          proc,
+          containerName,
+          group.folder,
+          false,
+        ),
       wrappedOnOutput,
     );
 

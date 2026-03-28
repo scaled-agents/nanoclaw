@@ -181,7 +181,12 @@ export class GroupQueue {
     if (!state.messageActive || !state.messageGroupFolder) return false;
     state.messageIdleWaiting = false; // Agent is about to receive work, no longer idle
 
-    const inputDir = path.join(DATA_DIR, 'ipc', state.messageGroupFolder, 'input');
+    const inputDir = path.join(
+      DATA_DIR,
+      'ipc',
+      state.messageGroupFolder,
+      'input',
+    );
     try {
       fs.mkdirSync(inputDir, { recursive: true });
       const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`;
@@ -202,7 +207,12 @@ export class GroupQueue {
     const state = this.getGroup(groupJid);
     if (!state.messageActive || !state.messageGroupFolder) return;
 
-    const inputDir = path.join(DATA_DIR, 'ipc', state.messageGroupFolder, 'input');
+    const inputDir = path.join(
+      DATA_DIR,
+      'ipc',
+      state.messageGroupFolder,
+      'input',
+    );
     try {
       fs.mkdirSync(inputDir, { recursive: true });
       fs.writeFileSync(path.join(inputDir, '_close'), '');
