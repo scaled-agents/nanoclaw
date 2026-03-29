@@ -268,6 +268,16 @@ function buildVolumeMounts(
     });
   }
 
+  // Webhook config (read-only — agents can list webhooks)
+  const webhooksFile = path.join(DATA_DIR, 'bot-runner', 'webhooks.json');
+  if (fs.existsSync(webhooksFile)) {
+    mounts.push({
+      hostPath: webhooksFile,
+      containerPath: '/workspace/extra/bot-runner/webhooks.json',
+      readonly: true,
+    });
+  }
+
   // Bot runner request queue (writable for main group only — agents submit bot requests here)
   if (isMain) {
     const botRequestDir = path.join(DATA_DIR, 'bot-runner', 'requests');

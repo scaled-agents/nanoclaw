@@ -859,6 +859,15 @@ Message format when reporting state changes:
 - DD: 5.2% | Capital: 42% | Active: 3/10 | Circuit breaker: OFF
 ```
 
+**Step 14b: Webhook Health**
+
+Read webhooks.json stats for all enabled webhooks using `webhook_list()`:
+- If any webhook has `consecutive_failures >= 5`: include a warning in the status message
+- If any webhook was auto-disabled (`consecutive_failures >= 10`):
+  notify: "Webhook '{name}' auto-disabled after 10 failures. Last error: {reason}. Fix the URL and re-enable."
+- Include webhook summary in status message if any issues found
+- If all webhooks are healthy: no output needed (silent)
+
 **Step 15: Log to AphexDATA**
 
 ```

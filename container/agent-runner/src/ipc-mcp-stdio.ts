@@ -716,6 +716,258 @@ server.tool(
   },
 );
 
+// ─── Webhook MCP Tools ────────────────────────────────────────────────
+
+const BOT_RUNNER_DIR = process.env.BOT_RUNNER_DIR || '/workspace/extra/bot-runner';
+const WEBHOOK_REQUEST_DIR = path.join(BOT_RUNNER_DIR, 'requests');
+const WEBHOOKS_FILE = path.join(BOT_RUNNER_DIR, 'webhooks.json');
+
+function generateWebhookRequestId(): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `wh_${ts}_${rand}`;
+}
+
+async function submitWebhookRequest(
+  request: Record<string, unknown>,
+  timeoutMs = 15000,
+): Promise<Record<string, unknown>> {
+  const requestId = generateWebhookRequestId();
+  const requestPath = path.join(WEBHOOK_REQUEST_DIR, `${requestId}.request.json`);
+
+  if (!fs.existsSync(WEBHOOK_REQUEST_DIR)) {
+    throw new Error('Bot runner request directory not found. Is bot-runner enabled on the host?');
+  }
+
+  fs.writeFileSync(requestPath, JSON.stringify(request, null, 2));
+
+  const statusPath = path.join(WEBHOOK_REQUEST_DIR, `${requestId}.status.json`);
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (fs.existsSync(statusPath)) {
+      return JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error('Timeout waiting for webhook response from bot-runner');
+}
+
+server.tool(
+  'webhook_list',
+  'List all configured outbound webhooks with their delivery stats.',
+  {},
+  async () => {
+    try {
+      if (!fs.existsSync(WEBHOOKS_FILE)) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ webhooks: [], message: 'No webhooks configured yet.' }, null, 2),
+          }],
+        };
+      }
+      const data = JSON.parse(fs.readFileSync(WEBHOOKS_FILE, 'utf-8'));
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `Failed to read webhooks: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  'webhook_create',
+  'Create a new outbound webhook for signal delivery. Returns the webhook config including the auto-generated signing secret.',
+  {
+    name: z.string().describe('Descriptive name, e.g. "Katoshi Hyperliquid"'),
+    url: z.string().describe('HTTPS endpoint URL'),
+    deployment_ids: z
+      .array(z.string())
+      .optional()
+      .describe('Which bot deployment IDs trigger this webhook. Empty = all bots.'),
+    format: z
+      .enum(['standard', 'katoshi', '3commas', 'custom'])
+      .optional()
+      .describe('Payload format. Default: standard'),
+    events: z
+      .object({
+        entry: z.boolean().optional(),
+        exit: z.boolean().optional(),
+      })
+      .optional()
+      .describe('Which event types to deliver'),
+    headers: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe('Custom headers. Use {{ENV_VAR}} for secrets from .env'),
+  },
+  async (args) => {
+    try {
+      const config: Record<string, unknown> = {
+        name: args.name,
+        url: args.url,
+      };
+
+      if (args.deployment_ids) {
+        config.source_filter = {
+          deployment_ids: args.deployment_ids,
+          archetypes: [],
+          pairs: [],
+          timeframes: [],
+        };
+      }
+
+      if (args.events) {
+        config.event_filter = {
+          entry: args.events.entry !== false,
+          exit: args.events.exit !== false,
+          signal_toggle: false,
+          lifecycle_change: false,
+        };
+      }
+
+      if (args.format) {
+        config.transform = {
+          format: args.format,
+          include_regime_context: true,
+          include_paper_pnl: true,
+          include_confidence: true,
+          include_raw_indicators: false,
+          custom_fields: {},
+        };
+      }
+
+      if (args.headers) {
+        config.delivery = {
+          timeout_ms: 10000,
+          retry_count: 3,
+          retry_delay_ms: 5000,
+          headers: args.headers,
+        };
+      }
+
+      const result = await submitWebhookRequest({
+        type: 'webhook_create',
+        webhook_config: config,
+        deployment_id: '',
+        submitted_at: new Date().toISOString(),
+      });
+
+      if (result.status === 'failed') {
+        return {
+          content: [{ type: 'text' as const, text: `Failed to create webhook: ${result.error}` }],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            message: `Webhook "${args.name}" created successfully.`,
+            webhook: result.webhook,
+          }, null, 2),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `webhook_create failed: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  'webhook_test',
+  'Send a test payload to a webhook to verify it is working. Returns the delivery result.',
+  {
+    webhook_id: z.string().describe('ID of webhook to test (from webhook_list)'),
+  },
+  async (args) => {
+    try {
+      const result = await submitWebhookRequest({
+        type: 'webhook_test',
+        webhook_id: args.webhook_id,
+        deployment_id: '',
+        submitted_at: new Date().toISOString(),
+      });
+
+      if (result.status === 'failed') {
+        return {
+          content: [{ type: 'text' as const, text: `Webhook test failed: ${result.error}` }],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            message: 'Test payload delivered.',
+            delivery_result: result.delivery_result,
+          }, null, 2),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `webhook_test failed: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  'webhook_delete',
+  'Delete a webhook permanently. Requires the webhook_id.',
+  {
+    webhook_id: z.string().describe('ID of webhook to delete'),
+    confirm: z.boolean().describe('Must be true to confirm deletion'),
+  },
+  async (args) => {
+    if (!args.confirm) {
+      return {
+        content: [{ type: 'text' as const, text: 'Deletion cancelled — confirm must be true.' }],
+      };
+    }
+
+    try {
+      const result = await submitWebhookRequest({
+        type: 'webhook_delete',
+        webhook_id: args.webhook_id,
+        deployment_id: '',
+        submitted_at: new Date().toISOString(),
+      });
+
+      if (result.status === 'failed') {
+        return {
+          content: [{ type: 'text' as const, text: `Failed to delete webhook: ${result.error}` }],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Webhook ${args.webhook_id} deleted successfully.`,
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `webhook_delete failed: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
 // Start the stdio transport
 const transport = new StdioServerTransport();
 await server.connect(transport);

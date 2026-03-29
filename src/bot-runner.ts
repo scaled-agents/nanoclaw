@@ -23,9 +23,10 @@ import fs from 'fs';
 import path from 'path';
 import http from 'http';
 
-import { DATA_DIR } from './config.js';
+import { DATA_DIR, GROUPS_DIR } from './config.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+import { dispatchSignal, type TradeEvent } from './webhook-dispatcher.js';
 
 // ─── Configuration ──────────────────────────────────────────────────
 
@@ -65,7 +66,14 @@ const lastTradeCount = new Map<string, number>();
 // ─── Types ──────────────────────────────────────────────────────────
 
 interface BotRequest {
-  type: 'start_bot' | 'stop_bot' | 'toggle_signals' | 'get_status';
+  type:
+    | 'start_bot'
+    | 'stop_bot'
+    | 'toggle_signals'
+    | 'get_status'
+    | 'webhook_create'
+    | 'webhook_test'
+    | 'webhook_delete';
   deployment_id: string;
   strategy_name?: string;
   pair?: string;
@@ -75,6 +83,8 @@ interface BotRequest {
   enable?: boolean; // for toggle_signals
   confirm?: boolean; // for stop_bot
   dry_run?: boolean; // default true
+  webhook_config?: any; // for webhook_create
+  webhook_id?: string; // for webhook_test/delete
   submitted_at: string;
 }
 
@@ -118,6 +128,48 @@ interface BotStatusFile {
 export interface BotRunnerDeps {
   sendMessage: (jid: string, text: string) => Promise<void>;
   registeredGroups: () => Record<string, { folder: string; name: string }>;
+}
+
+// ─── Deployment / Market Prior readers (for webhook context) ────────
+
+function readDeployment(deploymentId: string): any | null {
+  try {
+    for (const folder of fs.readdirSync(GROUPS_DIR)) {
+      const depFile = path.join(
+        GROUPS_DIR,
+        folder,
+        'auto-mode',
+        'deployments.json',
+      );
+      if (!fs.existsSync(depFile)) continue;
+      const data = JSON.parse(fs.readFileSync(depFile, 'utf-8'));
+      const dep = data.deployments?.find(
+        (d: any) => d.id === deploymentId,
+      );
+      if (dep) return dep;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function readMarketPrior(): any | null {
+  try {
+    for (const folder of fs.readdirSync(GROUPS_DIR)) {
+      const mpFile = path.join(
+        GROUPS_DIR,
+        folder,
+        'auto-mode',
+        'market-prior.json',
+      );
+      if (!fs.existsSync(mpFile)) continue;
+      return JSON.parse(fs.readFileSync(mpFile, 'utf-8'));
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 // ─── State ──────────────────────────────────────────────────────────
@@ -648,6 +700,57 @@ async function publishSignalEvent(
   );
 }
 
+/**
+ * Post a trade event to aphexDATA so it shows up in the Event Log / Notifications
+ * via the console-sync pipeline.
+ */
+async function postTradeEvent(
+  deploymentId: string,
+  status: BotStatusFile,
+): Promise<void> {
+  const aphexEnv = readEnvFile(['APHEXDATA_URL', 'APHEXDATA_API_KEY', 'APHEXDATA_AGENT_ID']);
+  const aphexUrl = (process.env.APHEXDATA_URL || aphexEnv.APHEXDATA_URL || '').replace(/\/+$/, '');
+  const apiKey = process.env.APHEXDATA_API_KEY || aphexEnv.APHEXDATA_API_KEY || '';
+  const agentId = process.env.APHEXDATA_AGENT_ID || aphexEnv.APHEXDATA_AGENT_ID || '';
+
+  if (!aphexUrl || !apiKey) return;
+
+  const body = {
+    agent_id: agentId || undefined,
+    verb_id: 'trade_detected',
+    verb_category: 'execution',
+    object_type: 'trade',
+    object_id: status.pair || deploymentId,
+    trust_level: 'agent_asserted',
+    result_data: {
+      deployment_id: deploymentId,
+      strategy: status.strategy,
+      pair: status.pair,
+      timeframe: status.timeframe,
+      trade_count: status.paper_pnl?.trade_count ?? 0,
+      profit_pct: status.paper_pnl?.profit_pct ?? 0,
+      win_rate: status.paper_pnl?.win_rate ?? 0,
+    },
+    context: {
+      source: 'bot_runner',
+      deployment_id: deploymentId,
+    },
+  };
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`,
+  };
+
+  await fetch(`${aphexUrl}/api/v1/events`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  logger.info({ deploymentId }, 'Trade event posted to aphexDATA');
+}
+
 // ─── Request Processing ─────────────────────────────────────────────
 
 async function processRequest(requestFile: string): Promise<void> {
@@ -727,6 +830,45 @@ async function processRequest(requestFile: string): Promise<void> {
           type: req.type,
           status: 'completed',
           bot_status: botStatus,
+        });
+        break;
+      }
+
+      case 'webhook_create': {
+        const { createWebhook } = await import('./webhook-dispatcher.js');
+        const webhook = createWebhook(req.webhook_config || {});
+        writeRequestStatus(requestId, {
+          request_id: requestId,
+          type: req.type,
+          status: 'completed',
+          webhook,
+        });
+        break;
+      }
+
+      case 'webhook_test': {
+        const { testWebhook } = await import('./webhook-dispatcher.js');
+        const result = await testWebhook(
+          req.webhook_id!,
+          process.env as Record<string, string>,
+        );
+        writeRequestStatus(requestId, {
+          request_id: requestId,
+          type: req.type,
+          status: 'completed',
+          delivery_result: result,
+        });
+        break;
+      }
+
+      case 'webhook_delete': {
+        const { deleteWebhook } = await import('./webhook-dispatcher.js');
+        const deleted = deleteWebhook(req.webhook_id!);
+        writeRequestStatus(requestId, {
+          request_id: requestId,
+          type: req.type,
+          status: deleted ? 'completed' : 'failed',
+          error: deleted ? undefined : 'Webhook not found',
         });
         break;
       }
@@ -923,7 +1065,7 @@ async function healthCheckBots(): Promise<void> {
       // Fetch profit data for status file
       const status = await getBotStatus(deploymentId);
 
-      // Signal marketplace: detect new trades and publish signal events
+      // Signal marketplace + webhooks: detect new trades
       try {
         const tradeCount = status.paper_pnl?.trade_count ?? 0;
         const prevCount = lastTradeCount.get(deploymentId) ?? tradeCount;
@@ -931,6 +1073,48 @@ async function healthCheckBots(): Promise<void> {
 
         if (tradeCount > prevCount && tradeCount > 0) {
           await publishSignalEvent(deploymentId, status);
+          await postTradeEvent(deploymentId, status);
+
+          // Webhook dispatch: fetch trade details from FreqTrade API
+          try {
+            const newTradeCount = tradeCount - prevCount;
+            const tradesRes = await ftApiCall(
+              bot.port,
+              'GET',
+              `trades?limit=${newTradeCount}`,
+              bot.password,
+            );
+            if (tradesRes.status === 200) {
+              const tradesData = JSON.parse(tradesRes.body);
+              const deployment = readDeployment(deploymentId);
+              const marketPrior = readMarketPrior();
+
+              for (const trade of tradesData.trades || []) {
+                const tradeEvent: TradeEvent = {
+                  pair: trade.pair,
+                  is_short: trade.is_short || false,
+                  is_exit: trade.close_date !== null,
+                  open_rate: trade.open_rate,
+                  close_rate: trade.close_rate,
+                  profit_pct: trade.profit_pct,
+                  exit_reason: trade.exit_reason,
+                  holding_minutes: trade.trade_duration,
+                };
+                await dispatchSignal(
+                  tradeEvent,
+                  status,
+                  deployment,
+                  marketPrior,
+                  process.env as Record<string, string>,
+                );
+              }
+            }
+          } catch (whErr) {
+            logger.debug(
+              { deploymentId, err: String(whErr) },
+              'Webhook dispatch failed',
+            );
+          }
         }
       } catch {
         // Non-critical — signal publishing failure should never break health checks

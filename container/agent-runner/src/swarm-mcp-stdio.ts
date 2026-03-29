@@ -1,9 +1,10 @@
 /**
  * Stdio MCP Server for NanoClaw FreqSwarm Integration
- * Provides 18 tools: 6 read-only for viewing strategy research reports,
+ * Provides 19 tools: 6 read-only for viewing strategy research reports,
  * 6 trigger tools for matrix sweeps, batch backtests, autoresearch batches, and job management,
  * 2 blocking execution tools (swarm_execute_sweep, swarm_execute_autoresearch),
  * 2 seed library tools for loading pre-built native sdna seed genomes,
+ * 1 strategy library tool for listing available strategies,
  * 1 strategy scanner tool for determining mutation eligibility of non-sdna strategies,
  * 1 history tool for querying past autoresearch mutations on a strategy.
  */
@@ -633,7 +634,7 @@ server.tool(
   'swarm_trigger_batch_backtest',
   'Submit a batch backtest triage job — runs MANY strategies through a single raw backtest each, in parallel. Designed for fast triage of large strategy pools (e.g. 255 strategies). Returns a run_id for polling with swarm_poll_run. Use swarm_job_results to read ranked results when done.',
   {
-    strategies: z.array(z.string()).describe('Array of strategy class names to backtest (must exist as .py files in the group strategies directory)'),
+    strategies: z.array(z.string()).describe('Array of strategy class names to backtest. Strategies are resolved from the swarm library (~450 community + WolfClaw). Use swarm_list_strategies to see available names.'),
     timerange: z.string().describe('Backtest date range in YYYYMMDD-YYYYMMDD format'),
     pairs: z.array(z.string()).optional().describe('Trading pairs to test. Default: ["BTC/USDT:USDT"]'),
     timeframes: z.array(z.string()).optional().describe('Timeframes to test. Default: ["1h"]'),
@@ -901,6 +902,44 @@ server.tool(
       return ok({ genome, message: `Loaded seed: ${name} (genome_id=${contentHash})` });
     } catch (e) {
       return err(`Failed to load seed: ${(e as Error).message}`);
+    }
+  },
+);
+
+// ─── Strategy Library ─────────────────────────────────────────────────
+
+const SWARM_STRATEGIES_DIR = path.join(FREQSWARM_DIR, 'data', 'user_data', 'strategies');
+
+server.tool(
+  'swarm_list_strategies',
+  'List all available strategy .py files in the swarm strategies library. Returns class names that can be used with swarm_trigger_batch_backtest or swarm_scan_strategy. Includes ~450 community strategies (migrated to modern FreqTrade API) plus any WolfClaw strategies. Use name_filter to search by substring.',
+  {
+    name_filter: z.string().optional().describe('Optional substring filter for strategy names (case-insensitive). E.g. "wolf", "nfi", "cluc"'),
+    count_only: z.boolean().optional().describe('If true, only return the count. Default false.'),
+  },
+  async (args) => {
+    try {
+      if (!fs.existsSync(SWARM_STRATEGIES_DIR)) {
+        return err('Swarm strategies directory not found. Is freqswarm mounted?');
+      }
+      let strategies = fs.readdirSync(SWARM_STRATEGIES_DIR)
+        .filter(f => f.endsWith('.py') && !f.startsWith('__'))
+        .map(f => f.replace('.py', ''))
+        .sort();
+
+      if (args.name_filter) {
+        const filter = args.name_filter.toLowerCase();
+        strategies = strategies.filter(s => s.toLowerCase().includes(filter));
+      }
+
+      if (args.count_only) {
+        return ok({ total: strategies.length, filter: args.name_filter || null });
+      }
+
+      log(`Listed ${strategies.length} strategies${args.name_filter ? ` (filter: ${args.name_filter})` : ''}`);
+      return ok({ strategies, total: strategies.length, filter: args.name_filter || null });
+    } catch (e) {
+      return err(`Failed to list strategies: ${(e as Error).message}`);
     }
   },
 );
