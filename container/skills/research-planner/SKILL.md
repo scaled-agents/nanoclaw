@@ -88,7 +88,10 @@ Procedure:
       - Supertrend, ATR expansion → VOLATILITY_HARVEST
       - Funding rate → CARRY_FUNDING
       - Micro_trend, tick → SCALPING
-   c. Store classification in nova-scan.json
+   c. Store classification in nova-scan.json. IMPORTANT: also store the full
+      strategy_facts and strategy_ref from the scan result — you will need
+      these when building the AutoresearchSpec (facts is REQUIRED for
+      derived_subclass seeds, without it 0 variants are generated).
 4. For the target archetype: pick strategies with matching classification
    AND that pass the Seed Quality Gate (below) as seeds
 ```
@@ -100,13 +103,21 @@ A seed is only viable if ALL of the following hold:
    A momentum-biased seed (MACD crossover, EMA trend) will produce 0 trades
    when the market needs mean_reversion (RSI oversold, Bollinger bounce).
    Check the actual indicator logic, not just the name.
-2. MUTATION SURFACE: The seed must have ≥2 eligible mutation families that
-   change trading behavior (adjust_params, swap_indicator, add_filter).
-   param_pin and risk_override alone are NOT sufficient — they cannot fix
-   a seed that produces zero trades.
-3. CONTINUOUS PARAMS: For sdna/derived seeds, entry/exit parameters must be
-   continuous floats (not categorical strings) for the mutation engine to
-   explore. Categorical params produce 0 variants.
+2. MUTATION SURFACE (backend-dependent):
+   - sdna_compile seeds: must have ≥2 eligible behavioral families
+     (adjust_params, swap_indicator, add_filter). param_pin and
+     risk_override are not available for this backend.
+   - derived_subclass seeds: param_pin with ≥3 eligible hyperopt params
+     is sufficient mutation surface. risk_override + param_pin together
+     explore stoploss/ROI variations AND parameter combinations — enough
+     to find edge. If the strategy has <3 hyperopt params AND no static
+     stoploss → reject (insufficient surface).
+3. CONTINUOUS PARAMS (backend-dependent):
+   - sdna_compile seeds: entry/exit parameters must include at least one
+     continuous (int/float) parameter for adjust_params to work.
+     All-categorical genomes produce 0 adjust_params variants.
+   - derived_subclass seeds: categorical params are viable — param_pin
+     samples from the choices list. No restriction on param types.
 4. DATA CONFIRMED: OHLCV data must exist for ALL pairs the strategy needs,
    including informative pairs from @informative decorators. Verify with
    swarm_scan_strategy() before submitting.
@@ -320,22 +331,80 @@ Pre-flight — verify swarm before spending budget:
       return
 
 For each campaign in "seeded" state, within weekly budget:
-  Build AutoresearchSpec:
+  Build AutoresearchSpec.  Each seed_genomes[] entry MUST match the
+  SeedGenomeEntry schema exactly — wrong field names cause validation
+  errors that silently kill the run.
+
+  For sdna seeds (Tier 2):
   {
-    "seed_genomes": [<from campaign.seeding.seed_strategies>],
+    "seed_genomes": [
+      {
+        "genome": <genome JSON from sdna_fork or sdna_compile>,
+        "execution_backend": "sdna_compile",
+        "pair": "ETH/USDT:USDT",
+        "timeframe": "1h",
+        "parent_sharpe": 0.0
+      }
+    ],
     "mutations_per_genome": 7,
     "timerange": "20250101-{current_date}",
     "n_walkforward_windows": 4,
-    "keeper_sharpe_threshold": 0.0,
+    "keeper_sharpe_threshold": 0.3,  // 0.3 aligns with FreqSwarm default. Planner applies 0.5 gate for graduation on top.
     "parent_sharpe_gate": true,
-    "screen_sharpe_threshold": -0.5,
+    "screen_sharpe_threshold": 0.0,  // wide initial screen — let walkforward do the real filtering
     "discard_hashes": [<from swarm_autoresearch_history(seed_name)>],
     "exchange": "binance"
   }
 
-  For nova/derived strategies (non-sdna):
-    Include execution_backend: "derived_subclass" in seed entries
-    Include strategy_ref from swarm_scan_strategy result
+  For nova/derived strategies (Tier 1 or Tier 3):
+  {
+    "seed_genomes": [
+      {
+        "execution_backend": "derived_subclass",
+        "strategy_ref": {
+          "class_name": "BbandsRsiAdx",
+          "source_file": "strategies/BbandsRsiAdx.py"
+        },
+        "facts": {
+          "class_name": "BbandsRsiAdx",
+          "source_file": "BbandsRsiAdx.py",
+          "class_stoploss": -0.2,
+          "class_minimal_roi": {},
+          "hyperopt_params": [<from scan result .strategy_facts.hyperopt_params>],
+          "has_custom_stoploss": false,
+          "has_custom_exit": true,
+          "uses_informative_pairs": true,
+          "uses_callbacks": false,
+          "scanner_warnings": []
+        },
+        "patch_families": ["risk_override", "param_pin"],
+        "pair": "ETH/USDT:USDT",
+        "timeframe": "1h",
+        "parent_sharpe": 0.0
+      }
+    ],
+    "mutations_per_genome": 7,
+    "timerange": "20250101-{current_date}",
+    "n_walkforward_windows": 4,
+    "keeper_sharpe_threshold": 0.3,  // 0.3 aligns with FreqSwarm default. Planner applies 0.5 gate for graduation on top.
+    "parent_sharpe_gate": true,
+    "screen_sharpe_threshold": 0.0,  // wide initial screen — let walkforward do the real filtering
+    "discard_hashes": [<from swarm_autoresearch_history(seed_name)>],
+    "exchange": "binance"
+  }
+
+  FIELD NAME REFERENCE (SeedGenomeEntry schema):
+  - execution_backend: "sdna_compile" | "derived_subclass"  (NOT "backend")
+  - strategy_ref.source_file: path relative to strategies dir  (NOT "file_path")
+  - facts: REQUIRED for derived_subclass — copy the full strategy_facts object
+    from swarm_scan_strategy() result. Contains hyperopt_params that the mutation
+    engine needs to generate param_pin patches. Without facts, 0 variants are
+    generated (the "No variant_metadata provided" error).
+  - pair: REQUIRED — e.g. "ETH/USDT:USDT"
+  - timeframe: REQUIRED — e.g. "1h"
+  - patch_families: list of families, e.g. ["risk_override", "param_pin"]
+  - genome: full StrategyGenome JSON (required for sdna_compile)
+  - strategy_ref: {class_name, source_file} (required for derived_subclass)
 
   run_id = swarm_trigger_autoresearch(spec_json, workers=4, priority="normal")
   Store run_id in campaign.research.run_ids[]
@@ -641,8 +710,12 @@ All files at `/workspace/group/research-planner/`. Directory created on first ru
           {
             "name": "BbandsRsiAdx",
             "source": "nova_scan",
-            "backend": "derived_subclass",
-            "strategy_ref": {"class_name": "BbandsRsiAdx", "file_path": "..."}
+            "execution_backend": "derived_subclass",
+            "strategy_ref": {"class_name": "BbandsRsiAdx", "source_file": "strategies/BbandsRsiAdx.py"},
+            "facts": "<full strategy_facts from swarm_scan_strategy() — REQUIRED>",
+            "patch_families": ["risk_override", "param_pin"],
+            "pair": "ETH/USDT:USDT",
+            "timeframe": "1h"
           }
         ]
       },
@@ -880,13 +953,18 @@ When spawning ClawTeam workers, always include:
 For sdna-based seeds:
 ```
 swarm_load_seed(name) → genome JSON
-→ include genome in AutoresearchSpec.seed_genomes[] with backend: "sdna_compile"
+→ include genome in AutoresearchSpec.seed_genomes[] with execution_backend: "sdna_compile"
+→ MUST include pair, timeframe in each seed entry
 ```
 
 For nova/derived seeds:
 ```
-swarm_scan_strategy(name) → StrategyFacts + strategy_ref
-→ include strategy_ref in AutoresearchSpec.seed_genomes[] with backend: "derived_subclass"
+swarm_scan_strategy(name) → {strategy_ref, strategy_facts, mutation_eligibility}
+→ include strategy_ref AND facts (= strategy_facts) in seed entry
+→ execution_backend: "derived_subclass"
+→ strategy_ref uses "source_file" (NOT "file_path")
+→ facts is REQUIRED — without it, 0 variants are generated ("No variant_metadata" error)
+→ MUST include pair, timeframe, patch_families in each seed entry
 ```
 
 Always check history first:

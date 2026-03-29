@@ -45,9 +45,11 @@ agents-sdk-docs
 container/freqtrade-mcp/
 
 # Application overview (local only)
+.systemdocs/
 APPLICATION_OVERVIEW.md
 CONSOLE_PRD.md
 SYSTEM_DETAILS.MD
+ROADMAP.md
 
 #Claude Directory
 .claude/
