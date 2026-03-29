@@ -143,9 +143,7 @@ function readDeployment(deploymentId: string): any | null {
       );
       if (!fs.existsSync(depFile)) continue;
       const data = JSON.parse(fs.readFileSync(depFile, 'utf-8'));
-      const dep = data.deployments?.find(
-        (d: any) => d.id === deploymentId,
-      );
+      const dep = data.deployments?.find((d: any) => d.id === deploymentId);
       if (dep) return dep;
     }
   } catch {
@@ -708,10 +706,20 @@ async function postTradeEvent(
   deploymentId: string,
   status: BotStatusFile,
 ): Promise<void> {
-  const aphexEnv = readEnvFile(['APHEXDATA_URL', 'APHEXDATA_API_KEY', 'APHEXDATA_AGENT_ID']);
-  const aphexUrl = (process.env.APHEXDATA_URL || aphexEnv.APHEXDATA_URL || '').replace(/\/+$/, '');
-  const apiKey = process.env.APHEXDATA_API_KEY || aphexEnv.APHEXDATA_API_KEY || '';
-  const agentId = process.env.APHEXDATA_AGENT_ID || aphexEnv.APHEXDATA_AGENT_ID || '';
+  const aphexEnv = readEnvFile([
+    'APHEXDATA_URL',
+    'APHEXDATA_API_KEY',
+    'APHEXDATA_AGENT_ID',
+  ]);
+  const aphexUrl = (
+    process.env.APHEXDATA_URL ||
+    aphexEnv.APHEXDATA_URL ||
+    ''
+  ).replace(/\/+$/, '');
+  const apiKey =
+    process.env.APHEXDATA_API_KEY || aphexEnv.APHEXDATA_API_KEY || '';
+  const agentId =
+    process.env.APHEXDATA_AGENT_ID || aphexEnv.APHEXDATA_AGENT_ID || '';
 
   if (!aphexUrl || !apiKey) return;
 
@@ -739,7 +747,7 @@ async function postTradeEvent(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`,
+    Authorization: `Bearer ${apiKey}`,
   };
 
   await fetch(`${aphexUrl}/api/v1/events`, {

@@ -231,10 +231,8 @@ function buildPayload(
     const pairBase = trade.pair.split('/')[0];
     const regimeData = marketPrior.regimes?.[pairBase]?.['H2_SHORT'];
     payload.context = {
-      regime:
-        regimeData?.regime || deployment?.last_regime || 'UNKNOWN',
-      conviction:
-        regimeData?.conviction || deployment?.last_conviction || 0,
+      regime: regimeData?.regime || deployment?.last_regime || 'UNKNOWN',
+      conviction: regimeData?.conviction || deployment?.last_conviction || 0,
       composite_score: deployment?.last_composite || 0,
       direction: regimeData?.direction || 'NEUTRAL',
       archetype: deployment?.archetype || 'UNKNOWN',
@@ -298,10 +296,7 @@ async function deliverWebhook(
 
   const bodyStr = JSON.stringify(payload);
   const signature = signPayload(bodyStr, webhook.secret);
-  const customHeaders = resolveHeaders(
-    webhook.delivery?.headers || {},
-    env,
-  );
+  const customHeaders = resolveHeaders(webhook.delivery?.headers || {}, env);
 
   const maxAttempts = (webhook.delivery?.retry_count ?? 3) + 1;
   const retryDelay = webhook.delivery?.retry_delay_ms || 5000;
@@ -493,9 +488,7 @@ function appendToLog(results: DeliveryResult[]): void {
 
 // ─── Webhook CRUD (called by MCP tools via IPC) ─────────────────────
 
-export function createWebhook(
-  config: Partial<WebhookConfig>,
-): WebhookConfig {
+export function createWebhook(config: Partial<WebhookConfig>): WebhookConfig {
   const webhooks = loadWebhooks();
   const id = `wh_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
   const secret = `whsec_${crypto.randomBytes(32).toString('hex')}`;
