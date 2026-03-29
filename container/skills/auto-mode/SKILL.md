@@ -1412,3 +1412,31 @@ After graduating a strategy and launching its paper bot:
 - If auto_publish_signals is true in config.json:
   signal_publish(deployment_id={id}, access_type="public")
   agent_post_status("Publishing signals for {strategy} on {pair}/{tf}", tags: ["auto_mode", "discovery"])
+
+
+## Idle-Time Triage Trigger
+
+After completing all health check steps, check whether to run
+a triage cycle:
+
+PREREQUISITES (all must be true):
+  - This health check was ROUTINE (no deployment state changes,
+    no circuit breaker events, no alerts triggered)
+  - No triage cycle has run in the last 3 minutes
+    (check triage-matrix.json last_cycle timestamp)
+  - Next scheduled task is > 5 minutes away
+  - Agent is in a task container (NOT a message container)
+
+If all prerequisites met:
+  Run ONE triage cycle per research-planner SKILL.md Part 3C
+  This takes 30 seconds for a normal Result B/C, or up to
+  3 minutes if a Result A triggers immediate walk-forward
+
+If any prerequisite fails:
+  Skip triage, go idle normally
+
+IMPORTANT: Do NOT run triage on health checks that produced
+state changes (deployment transitions, throttle/pause events,
+circuit breaker activation). Those checks are already
+information-dense and the session should close cleanly without
+adding a backtest.

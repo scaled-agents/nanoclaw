@@ -331,6 +331,251 @@ attempts → campaign `deferred`.
 
 
 ═══════════════════════════════════════════════════════════════════════
+PART 3C: CONTINUOUS TRIAGE (IDLE-TIME RESEARCH)
+═══════════════════════════════════════════════════════════════════════
+
+Between scheduled tasks, triage untested strategies one at a time
+during idle periods. No batch — just steady progress filling the
+triage matrix. The matrix feeds into seed discovery (Part 4, Step 6)
+so the planner already knows what works before creating campaigns.
+
+### When to Run
+
+Auto-mode triggers one triage cycle after completing a routine health
+check (see auto-mode skill for the trigger). The research planner
+executes the cycle using this procedure.
+
+Do NOT run triage if:
+- A triage cycle completed less than 3 minutes ago
+- An autoresearch run is actively being polled
+- The triage queue is empty (all strategies tested against all top pairs)
+- The agent is in a user message container (triage runs in task containers only)
+
+### State File: triage-matrix.json
+
+Location: `/workspace/group/research-planner/triage-matrix.json`
+
+Created on first triage cycle if it doesn't exist.
+
+```json
+{
+  "version": 1,
+  "queue_position": 0,
+  "total_strategies": 0,
+  "tested": 0,
+  "result_a_count": 0,
+  "result_b_count": 0,
+  "result_c_count": 0,
+  "last_cycle": null,
+  "last_queue_reset": null,
+  "top_missed_pairs": [],
+  "queue": [],
+  "candidates": [],
+  "winners": [],
+  "tested_results": []
+}
+```
+
+Field definitions:
+- `queue`: ordered list of strategy names not yet tested
+- `queue_position`: current index in the queue (for resuming)
+- `top_missed_pairs`: the 5 pairs with most missed opportunities (refreshed on queue reset)
+- `candidates`: Result B strategies — have some edge, need research
+- `winners`: Result A strategies — passed triage, pending or completed WF validation
+- `tested_results`: rolling log of all triage results (strategy, pair, sharpe, trades, result, tested_at)
+
+### One Triage Cycle Procedure (~2-3 minutes)
+
+**Step 1: Initialize or load queue**
+
+Read `/workspace/group/research-planner/triage-matrix.json`.
+
+If the file doesn't exist OR queue is empty OR `last_queue_reset` is
+more than 7 days ago:
+
+  1. List all .py files in `/workspace/group/user_data/strategies/`
+  2. Exclude strategies already in `tested_results` where ALL top 5
+     pairs have been tested (fully exhausted strategies)
+  3. Read `/workspace/group/auto-mode/missed-opportunities.json`
+     Aggregate by pair, sort by hit_count descending, take top 5
+     Store as `top_missed_pairs`
+  4. Build queue: list of strategy names, sorted alphabetically
+     (deterministic order, no cherry-picking)
+  5. Set `queue_position` = 0, `last_queue_reset` = now
+  6. Write triage-matrix.json
+
+If queue exists and is not stale: continue from `queue_position`.
+
+**Step 2: Pick next strategy and pair**
+
+  strategy_name = queue[queue_position]
+
+  For this strategy, check tested_results: which of the top 5 pairs
+  has it NOT been tested against yet?
+
+  pair = first untested pair from top_missed_pairs for this strategy
+
+  If all 5 pairs tested for this strategy:
+    Mark strategy as "exhausted" in tested_results
+    Increment queue_position
+    If queue_position >= len(queue): log "Triage queue complete"
+    Write triage-matrix.json
+    Return (cycle done, no backtest needed)
+
+**Step 3: Run single-window backtest**
+
+  freqtrade_backtest(
+    strategy=strategy_name,
+    pairs=[pair],
+    timeframe="1h",
+    timerange="20250101-20250424",
+    config_path=<standard config>
+  )
+
+  Extract from results: sharpe, trade_count, max_drawdown_pct
+
+  If backtest fails (strategy error, import error, etc.):
+    Record in tested_results: { strategy, pair, sharpe: null,
+      trades: 0, result: "ERROR", error: "<message>", tested_at }
+    Move to next pair for this strategy on next cycle
+    Return
+
+**Step 4: Classify result**
+
+  Read the archetype's graduation gates from archetypes.yaml.
+  Use the strategy's classified archetype from nova-scan.json if
+  available. If not classified, use the default gates (config.json
+  fallback: min_wf_sharpe=0.5).
+
+  Result A: sharpe >= graduation_gates.min_wf_sharpe
+            AND trade_count >= graduation_gates.min_trades_per_window
+
+    → IMMEDIATE ACTION within this same triage cycle:
+
+    1. Run full 4-window walk-forward:
+       Use scripts/triage_wf.py or run 4 sequential backtests:
+         W0: 20250101-20250424
+         W1: 20250424-20250815
+         W2: 20250815-20251206
+         W3: 20251206-20260329
+
+    2. Classify the WF pattern (Part 5, Step 1c):
+       CONSISTENT / DEGRADING / ALTERNATING / SINGLE_SPIKE
+
+    3. If CONSISTENT or CONDITIONAL PASS:
+       → GRADUATE on the spot
+       → Write header tags to strategy .py file
+       → Add to roster.json
+       → Post to feed: "Idle triage graduation: {strategy} on
+         {pair}/{tf} — WF Sharpe {mean}, pattern {pattern}"
+         tags: ["graduation", "triage"]
+       → Add to winners[] with graduated: true
+       → aphexdata_record_event(verb_id="triage_graduation",
+           result_data={ strategy, pair, mean_sharpe, pattern })
+
+    4. If DEGRADING or SINGLE_SPIKE:
+       → Add to winners[] with graduated: false, needs_research: true
+       → The research planner will route to HYPEROPT or STRUCTURAL
+         on its next planning cycle
+
+    5. If ALTERNATING:
+       → Check regime correlation (Part 5, Step 1c)
+       → If correct regime: CONDITIONAL PASS → graduate with
+         regime-gated deployment flag
+       → If wrong regime: reclassify, add to candidates[] under
+         correct archetype
+
+  Result B: sharpe >= 0.1 AND sharpe < graduation threshold
+
+    → Add to candidates[] in triage-matrix.json:
+      { strategy, pair, timeframe: "1h", sharpe, trades, max_dd,
+        archetype, triage_result: "B", tested_at }
+    → Log only. The research planner uses candidates as seeds
+      during its next planning cycle.
+    → If sharpe > 0.3: post to feed:
+      "Triage candidate: {strategy} on {pair} Sharpe {sharpe}"
+      tags: ["triage", "finding"]
+
+  Result C: sharpe < 0.1
+
+    → Record in tested_results only:
+      { strategy, pair, sharpe, trades, triage_result: "C", tested_at }
+    → On the NEXT triage cycle for this strategy, try the next
+      untested pair from top_missed_pairs
+    → If Result C on all 5 pairs: mark as "exhausted"
+
+**Step 5: Update state**
+
+  Record result in tested_results[]
+  Update counts: result_a_count, result_b_count, result_c_count
+  Update tested count
+  If the current strategy has been tested against the current pair,
+  advance: either next pair (same strategy) or next strategy
+  Update queue_position if moving to next strategy
+  Update last_cycle = now
+  Write triage-matrix.json (atomic: write .tmp then rename)
+
+### Triage Matrix Integration with Seed Discovery
+
+In Part 4 (Daily Planning Cycle), Step 6 (Seed Discovery), BEFORE
+running the 3-tier seed cascade:
+
+  1. Read triage-matrix.json
+
+  2. Filter candidates[] by campaign archetype + target pair:
+     matching = candidates.filter(c =>
+       c.archetype == campaign.archetype &&
+       campaign.target_pairs.includes(c.pair))
+
+  3. If matching candidates exist (Result B):
+     → Use the BEST candidate (highest sharpe) as the seed
+     → Skip the Tier 1-2-3 cascade entirely
+     → Proceed to Research Mode Selection (Part 3B)
+     → Log: "Using triage candidate {strategy} (Sharpe {n}) as
+       seed — skipping discovery cascade"
+
+  4. Filter winners[] by archetype + pair (Result A, not yet graduated):
+     → These need walk-forward validation, not research
+     → If found, run WF immediately and graduate if passes
+
+  5. If no matching candidates or winners:
+     → Run the 3-tier seed cascade as normal
+
+This means the triage matrix short-circuits the most expensive
+part of campaign setup (seed discovery) with a pre-computed answer.
+
+### Queue Reset (Weekly)
+
+Every Monday 03:00 UTC (aligned with budget reset):
+  - Rebuild queue from strategies directory (picks up new strategies)
+  - Refresh top_missed_pairs from latest missed-opportunities.json
+  - Clear "exhausted" flags (market conditions change week to week)
+  - KEEP tested_results history (append, don't overwrite)
+  - KEEP candidates and winners (these are valuable data)
+  - Reset queue_position to 0
+
+This means every strategy gets re-tested against the CURRENT top
+missed-opportunity pairs weekly. A strategy that was Result C on
+SOL last week might be Result B on DOGE this week if the missed
+opportunities shifted.
+
+### Throughput
+
+  Auto-mode cycles: 96/day (every 15 min)
+  Triage cycles: ~80/day (some cycles skipped due to state changes)
+  Backtests per cycle: 1 (30 seconds each)
+  Strategies in library: ~455
+  Top pairs tested: 5
+  Total combinations: 455 × 5 = 2,275
+  Days to first pass: ~28 (2,275 / 80)
+  After first pass: weekly re-triage against updated pairs
+
+  Result A strategies (estimated 1-5% of library): 5-23 strategies
+  that may already pass graduation without ANY research budget.
+  These are free graduations — the triage found them, not mutation.
+
+
+═══════════════════════════════════════════════════════════════════════
 PART 4: DAILY PLANNING CYCLE
 ═══════════════════════════════════════════════════════════════════════
 
@@ -410,6 +655,50 @@ For existing campaigns:
 
 ### Step 6: Seed discovery
 
+### Step 6 Pre-Check: Triage Matrix Lookup
+
+Before running the 3-tier seed cascade, check the triage matrix
+for pre-computed answers:
+
+  Read /workspace/group/research-planner/triage-matrix.json
+
+  For the campaign's target archetype + target pairs:
+
+  1. Check winners[]:
+     winners_match = winners.filter(w =>
+       w.archetype == campaign.archetype &&
+       campaign.target_pairs.includes(w.pair) &&
+       w.graduated == false)
+
+     If winners_match is not empty:
+       → Best winner already passed single-window triage
+       → Run 4-window walk-forward immediately
+       → If passes → graduate (skip cascade + autoresearch entirely)
+       → If fails → demote to candidates[], continue to cascade
+
+  2. Check candidates[]:
+     candidates_match = candidates.filter(c =>
+       c.archetype == campaign.archetype &&
+       campaign.target_pairs.includes(c.pair))
+     .sort(c => c.sharpe, descending)
+
+     If candidates_match is not empty:
+       → Use best candidate as the seed
+       → Skip Tier 1/2/3 cascade
+       → Proceed directly to Research Mode Selection (Part 3B)
+       → The triage already proved this seed has some edge
+       → Log: "Triage matrix provided seed {strategy}
+         (Sharpe {n}) — skipping discovery cascade"
+
+  3. If no winners or candidates match:
+     → Run the 3-tier cascade as normal
+     → Log: "No triage candidates for {archetype} on
+       {pairs} — running seed cascade"
+
+This short-circuits seed discovery for archetypes where the
+triage has already found promising strategies. The cascade
+becomes a fallback for gaps the triage hasn't covered yet.
+
 ```
 For each campaign in "planned" state:
   Run 3-tier cascade (Part 3 above)
@@ -443,8 +732,50 @@ Pre-flight — verify swarm before spending budget:
       Skip all campaign submissions this cycle
       return
 
-For each campaign in "seeded" state, within weekly budget:
-  Build AutoresearchSpec.  Each seed_genomes[] entry MUST match the
+For each campaign in "seeded" OR "triaged" state, within weekly budget:
+
+  If campaign.state == "seeded":
+    For each seed, check triage-matrix.json first:
+      If this strategy×pair already has a cached triage result → use it (skip redundant backtest)
+      If not → run pre-gate triage (Part 3 procedure) and cache the result in triage-matrix.json
+    Classify WF pattern for each seed (Part 5, Step 1c)
+    Select research mode using the decision tree (Part 3B)
+    campaign.state = "triaged"
+    campaign.research.research_mode = selected_mode
+    campaign.research.triage_results = {
+      seed_name, triage_sharpe, wf_pattern, trades_per_window, mode_selected
+    }
+    Log: aphexdata_record_event(verb_id="research_mode_selected", ...)
+
+  Route based on campaign.research.research_mode:
+    VALIDATE_ONLY:
+      → Graduate immediately (Step 3 in Part 5)
+      → No autoresearch budget consumed
+
+    HYPEROPT:
+      → Execute Step 7b (hyperopt procedure)
+      → campaign.state = "hyperopt"
+      → Costs 1 autoresearch slot
+
+    PARAM_PIN:
+      → Build AutoresearchSpec and submit (existing flow below)
+      → campaign.state = "researching"
+
+    STRUCTURAL:
+      → Spawn ClawTeam worker for structural variant creation
+      → campaign.state = "researching"
+
+    HYBRID:
+      → Execute Step 7b first
+      → If graduation not achieved, auto-submit param_pin autoresearch
+      → campaign.state = "hyperopt" → then "researching"
+
+    SKIP:
+      → campaign.state = "abandoned"
+      → Log: reason="no_viable_edge_at_triage"
+      → continue to next campaign
+
+  For PARAM_PIN mode: Build AutoresearchSpec.  Each seed_genomes[] entry MUST match the
   SeedGenomeEntry schema exactly — wrong field names cause validation
   errors that silently kill the run.
 
@@ -527,6 +858,51 @@ For each campaign in "seeded" state, within weekly budget:
   state: "researching"
   Decrement weekly budget counter
   Log: aphexdata_record_event(verb_id="research_triggered", ...)
+```
+
+### Step 7b: Execute HYPEROPT mode
+
+When a seed's research mode is HYPEROPT (selected by the decision tree in Part 3B):
+
+```
+1. Run hyperopt on the FULL timerange (not per-window):
+   freqtrade_run_hyperopt(
+     strategy=seed.strategy_ref.class_name,
+     timerange="20250101-{current_date}",
+     epochs=200,
+     spaces=["buy", "sell"],
+     config_path=config_path,
+     pairs=[campaign.target_pairs[0]],
+     loss_function="SharpeHyperOptLossDaily"
+   )
+
+2. Extract best hyperopt result parameters.
+
+3. Re-run pre-gate triage with the optimized parameters:
+   - Apply best params as a param_pin patch to the seed
+   - Run N-window walk-forward backtest with these params
+   - Classify WF pattern again
+
+4. If re-triage passes graduation gates:
+   → Graduate immediately (same as VALIDATE_ONLY path)
+   Log: graduation_path="hyperopt_direct"
+
+5. If re-triage improves Sharpe but doesn't pass:
+   → Transition to PARAM_PIN: submit autoresearch with the hyperopt-optimized
+     seed as the new baseline (mutations_per_genome=7).
+   Update: campaign.research.hyperopt_baseline_sharpe = re_triage_sharpe
+   state: "researching"
+
+6. If re-triage shows no improvement over original:
+   → If budget allows: try STRUCTURAL (escalate to ClawTeam)
+   → If no budget: state "near_miss" or "abandoned"
+
+Budget: HYPEROPT costs 1 autoresearch slot (same compute as param_pin batch).
+Duration: ~15 minutes for 200 epochs.
+Log: aphexdata_record_event(verb_id="research_hyperopt_completed", result_data={
+  campaign_id, seed_name, original_sharpe, hyperopt_sharpe, improved: bool,
+  next_action: "graduate" | "param_pin" | "structural" | "abandon"
+})
 ```
 
 ### Step 8: Atomic state write
@@ -811,6 +1187,8 @@ Budget counters are stored in `campaigns.json` under a top-level `budget` key:
     "week_start": "2026-03-24T03:00:00Z",
     "autoresearch_used": 2,
     "autoresearch_max": 6,
+    "hyperopt_used": 0,
+    "hyperopt_max": 4,
     "clawteam_used": 0,
     "clawteam_max": 2,
     "nova_scans_used": 15,
@@ -819,6 +1197,9 @@ Budget counters are stored in `campaigns.json` under a top-level `budget` key:
   "campaigns": [...]
 }
 ```
+
+Note: HYPEROPT consumes from `autoresearch_used` (same compute), but `hyperopt_used`
+tracks how many were hyperopt specifically for diagnostics and mode effectiveness analysis.
 
 Budget resets every Monday at 03:00 UTC (planning runs daily but budget is weekly).
 
@@ -842,6 +1223,8 @@ All files at `/workspace/group/research-planner/`. Directory created on first ru
     "week_start": "2026-03-24T03:00:00Z",
     "autoresearch_used": 2,
     "autoresearch_max": 6,
+    "hyperopt_used": 0,
+    "hyperopt_max": 4,
     "clawteam_used": 0,
     "clawteam_max": 2,
     "nova_scans_used": 15,
@@ -886,6 +1269,15 @@ All files at `/workspace/group/research-planner/`. Directory created on first ru
         "rounds_used": 1,
         "max_rounds": 4,
         "retry_count": 0,
+        "research_mode": "PARAM_PIN",
+        "triage_results": {
+          "seed_sharpe": 0.35,
+          "wf_pattern": "ALTERNATING",
+          "trades_per_window": [12, 8, 15, 10],
+          "per_window_sharpe": [0.5, -0.1, 0.6, 0.05],
+          "mode_decision_reason": "sharpe_above_threshold+alternating_pattern"
+        },
+        "hyperopt_baseline_sharpe": null,
         "keepers": [],
         "rejects_count": 7,
         "best_sharpe": 0.35,
@@ -1029,6 +1421,9 @@ PART 9: APHEXDATA EVENT CONVENTIONS
 | `research_retried` | execution | campaign | Failed run auto-retried after swarm recovery |
 | `research_selftest_failed` | analysis | report | Swarm selftest failed before campaign submission |
 | `nova_scan_completed` | analysis | report | Nova strategy classification batch done |
+| `research_mode_selected` | analysis | campaign | Research mode chosen after triage (result_data includes triage_sharpe, wf_pattern, selected_mode) |
+| `research_hyperopt_completed` | execution | campaign | Hyperopt finished, re-triage pending (result_data includes original_sharpe, hyperopt_sharpe, next_action) |
+| `research_escalated` | analysis | campaign | Mode escalated (e.g., HYPEROPT → PARAM_PIN → STRUCTURAL) |
 
 All events include `result_data` with campaign_id, archetype, and relevant
 metrics. Use `aphexdata_query_events` to query historical research activity.
