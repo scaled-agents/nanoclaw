@@ -945,3 +945,21 @@ After finding seeds:
     tags: ["research", "finding"],
     context: { archetype, seed_count, tier, seed_names }
   )
+
+## Signal Check Before Research
+
+Before creating a new research campaign:
+
+1. Call signal_catalog_query(archetype={target}, pair={target_pair})
+2. If quality signals exist (wf_sharpe >= 0.5, subscribers >= 3):
+   - Log: "Signal available for {archetype} on {pair} — deferring research"
+   - Post to feed: "Skipping research for {archetype}/{pair} — {publisher}
+     already publishes quality signals. Recommend subscribing."
+     tags: ["research", "discovery"]
+   - Do NOT create campaign
+3. If no quality signals exist:
+   - Create campaign as normal
+   - Log: "No marketplace signals for {archetype}/{pair} — researching"
+
+This prevents spending compute on research when a subscription
+would fill the gap instantly.

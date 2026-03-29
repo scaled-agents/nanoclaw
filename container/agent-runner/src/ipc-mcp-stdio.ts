@@ -357,6 +357,38 @@ async function feedFetch(urlPath: string, options?: RequestInit): Promise<any> {
   return res.json();
 }
 
+// ─── Signal Marketplace ──────────────────────────────────────────────
+
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const OPERATOR_ID = process.env.CONSOLE_OPERATOR_ID || '';
+
+async function supabaseFetch(
+  tablePath: string,
+  options?: RequestInit & { params?: Record<string, string> },
+): Promise<any> {
+  if (!SUPABASE_URL) throw new Error('SUPABASE_URL not configured');
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${tablePath}`);
+  if (options?.params) {
+    for (const [k, v] of Object.entries(options.params)) url.searchParams.set(k, v);
+  }
+  const headers: Record<string, string> = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json',
+  };
+  const { params: _, ...fetchOpts } = options || {};
+  const res = await fetch(url.toString(), {
+    ...fetchOpts,
+    headers: { ...headers, ...(fetchOpts?.headers as Record<string, string>) },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Supabase ${res.status}: ${body}`);
+  }
+  return res.json();
+}
+
 function getRelativeTime(timestamp: string): string {
   const diff = Date.now() - new Date(timestamp).getTime();
   const minutes = Math.floor(diff / 60000);
@@ -497,6 +529,187 @@ server.tool(
     } catch (e) {
       return {
         content: [{ type: 'text' as const, text: `Failed to read feed: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+// ─── Signal Marketplace Tools ────────────────────────────────────────
+
+server.tool(
+  'signal_catalog_query',
+  "Search the signal marketplace for available signals from other agents. Use to find signals that fill your coverage gaps. Returns catalog entries with publisher info, performance metrics, and subscriber counts.",
+  {
+    archetype: z.string().optional().describe('Filter by archetype (e.g. "MEAN_REVERSION", "TREND_MOMENTUM")'),
+    pair: z.string().optional().describe('Filter by pair (e.g. "ETH/USDT:USDT")'),
+    timeframe: z.string().optional().describe('Filter by timeframe (e.g. "1h", "4h")'),
+    min_wf_sharpe: z.number().optional().describe('Minimum walk-forward Sharpe ratio (e.g. 0.5)'),
+    min_subscribers: z.number().optional().describe('Minimum subscriber count for social proof'),
+    access_type: z.string().optional().describe('Filter by access type: "public", "private", or "paid"'),
+    limit: z.number().optional().describe('Max results to return (default 10)'),
+  },
+  async (args) => {
+    try {
+      const params: Record<string, string> = {
+        'status': 'eq.active',
+        'order': 'wf_sharpe.desc.nullslast,subscriber_count.desc',
+        'limit': String(args.limit || 10),
+      };
+
+      if (args.archetype) params['archetype'] = `eq.${args.archetype}`;
+      if (args.pair) params['pair'] = `eq.${args.pair}`;
+      if (args.timeframe) params['timeframe'] = `eq.${args.timeframe}`;
+      if (args.min_wf_sharpe != null) params['wf_sharpe'] = `gte.${args.min_wf_sharpe}`;
+      if (args.min_subscribers != null) params['subscriber_count'] = `gte.${args.min_subscribers}`;
+      if (args.access_type) params['access_type'] = `eq.${args.access_type}`;
+
+      const data = await supabaseFetch('signal_catalog', { params });
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            results: data,
+            count: Array.isArray(data) ? data.length : 0,
+            filters: {
+              archetype: args.archetype,
+              pair: args.pair,
+              timeframe: args.timeframe,
+              min_wf_sharpe: args.min_wf_sharpe,
+            },
+          }, null, 2),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `Failed to query signal catalog: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  'signal_subscribe',
+  "Subscribe to a signal from the marketplace. Requires a catalog_id from signal_catalog_query results. Creates a subscription so you receive signal events from the publisher.",
+  {
+    catalog_id: z.string().describe('Signal catalog entry UUID from signal_catalog_query results'),
+    delivery_method: z.enum(['realtime', 'webhook', 'feed_only']).default('feed_only').describe('How to receive signals. Default: feed_only'),
+    action_on_signal: z.enum(['log_only', 'paper_trade', 'notify']).default('log_only').describe('What to do when a signal arrives. Default: log_only'),
+  },
+  async (args) => {
+    try {
+      if (!OPERATOR_ID) throw new Error('CONSOLE_OPERATOR_ID not configured');
+
+      const body = {
+        catalog_id: args.catalog_id,
+        subscriber_id: OPERATOR_ID,
+        delivery_method: args.delivery_method,
+        action_on_signal: args.action_on_signal,
+        status: 'active',
+      };
+
+      const data = await supabaseFetch('signal_subscriptions', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Prefer': 'return=representation' } as Record<string, string>,
+      });
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            message: `Subscribed to signal ${args.catalog_id}`,
+            subscription: Array.isArray(data) ? data[0] : data,
+            delivery_method: args.delivery_method,
+            action_on_signal: args.action_on_signal,
+          }, null, 2),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `Failed to subscribe: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  'signal_publish',
+  "Publish a paper-trading bot's signals to the marketplace. Other agents can then discover and subscribe to your signals. Reads deployment data from deployments.json to auto-fill strategy details.",
+  {
+    deployment_id: z.string().describe('Bot deployment ID from deployments.json'),
+    access_type: z.enum(['public', 'private']).default('public').describe('Who can subscribe. Default: public'),
+    include_sizing: z.boolean().default(false).describe('Include position sizing info in signals. Default: false'),
+  },
+  async (args) => {
+    try {
+      if (!OPERATOR_ID) throw new Error('CONSOLE_OPERATOR_ID not configured');
+
+      // Read deployment data
+      const deploymentsPath = '/workspace/group/auto-mode/deployments.json';
+      if (!fs.existsSync(deploymentsPath)) {
+        throw new Error('deployments.json not found — no deployments to publish');
+      }
+      const deployments = JSON.parse(fs.readFileSync(deploymentsPath, 'utf-8'));
+      const deployment = Array.isArray(deployments)
+        ? deployments.find((d: any) => d.id === args.deployment_id)
+        : deployments[args.deployment_id];
+
+      if (!deployment) {
+        throw new Error(`Deployment ${args.deployment_id} not found in deployments.json`);
+      }
+
+      const agentName = process.env.AGENT_NAME || groupFolder || 'unknown';
+
+      const body = {
+        publisher_id: OPERATOR_ID,
+        publisher_name: agentName,
+        agent_name: agentName,
+        strategy_name: deployment.strategy || '',
+        pair: deployment.pairs?.[0] || deployment.pair || '',
+        timeframe: deployment.timeframe || '',
+        archetype: deployment.archetype || '',
+        paper_pnl: deployment.paper_pnl || {},
+        wf_sharpe: deployment.wfo_sharpe ?? deployment.wf_sharpe ?? null,
+        wf_degradation: deployment.wfo_degradation ?? deployment.wf_degradation ?? null,
+        graduation_date: deployment.graduated_at || deployment.graduated || null,
+        preferred_regimes: deployment.preferred_regimes || [],
+        anti_regimes: deployment.anti_regimes || [],
+        access_type: args.access_type,
+        signal_config: {
+          include_entry: true,
+          include_exit: true,
+          include_sizing: args.include_sizing,
+          include_regime_context: true,
+          include_confidence: true,
+        },
+        status: 'active',
+      };
+
+      const data = await supabaseFetch('signal_catalog', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Prefer': 'return=representation' } as Record<string, string>,
+      });
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            message: `Published signals for ${deployment.strategy} on ${body.pair}/${body.timeframe}`,
+            catalog_entry: Array.isArray(data) ? data[0] : data,
+            access_type: args.access_type,
+          }, null, 2),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `Failed to publish signal: ${(e as Error).message}` }],
         isError: true,
       };
     }

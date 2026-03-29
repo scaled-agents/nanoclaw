@@ -1381,3 +1381,25 @@ After logging missed opportunities with new high-priority gaps:
 
 Do NOT post on silent/clean ticks. Only post when something changed
 or something noteworthy was detected.
+
+## Signal Discovery (every 4th tick)
+
+On hourly ticks, after regime refresh:
+
+1. Read coverage gaps from missed-opportunities.json
+2. Identify archetypes with zero staged strategies in deployments.json
+3. Call signal_catalog_query(archetype={gap}, min_wf_sharpe=0.5)
+4. For each quality signal that fills a gap:
+   - Check quality gates: wf_sharpe >= 0.5, trade_count >= 10, positive P&L
+   - If auto_subscribe_rules in config.json match: auto-subscribe via signal_subscribe
+   - Otherwise: post to agent feed as recommendation
+     "Signal available: {publisher} publishes {archetype} on {pair}/{tf}
+      with WF Sharpe {n}. Fills your {archetype} gap."
+5. Log: agent_post_status with tags ["auto_mode", "discovery"]
+
+Do NOT auto-subscribe without matching rules. Recommend by default.
+
+After graduating a strategy and launching its paper bot:
+- If auto_publish_signals is true in config.json:
+  signal_publish(deployment_id={id}, access_type="public")
+  agent_post_status("Publishing signals for {strategy} on {pair}/{tf}", tags: ["auto_mode", "discovery"])
