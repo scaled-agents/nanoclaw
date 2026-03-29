@@ -349,7 +349,8 @@ For each campaign in "seeded" state, within weekly budget:
     "mutations_per_genome": 7,
     "timerange": "20250101-{current_date}",
     "n_walkforward_windows": 4,
-    "keeper_sharpe_threshold": 0.3,  // 0.3 aligns with FreqSwarm default. Planner applies 0.5 gate for graduation on top.
+    "min_trades": <archetype>.graduation_gates.min_trades_per_window,  // per-archetype from archetypes.yaml
+    "keeper_sharpe_threshold": 0.3,  // 0.3 aligns with FreqSwarm default. Planner applies graduation gate on top.
     "parent_sharpe_gate": true,
     "screen_sharpe_threshold": 0.0,  // wide initial screen — let walkforward do the real filtering
     "discard_hashes": [<from swarm_autoresearch_history(seed_name)>],
@@ -386,7 +387,8 @@ For each campaign in "seeded" state, within weekly budget:
     "mutations_per_genome": 7,
     "timerange": "20250101-{current_date}",
     "n_walkforward_windows": 4,
-    "keeper_sharpe_threshold": 0.3,  // 0.3 aligns with FreqSwarm default. Planner applies 0.5 gate for graduation on top.
+    "min_trades": <archetype>.graduation_gates.min_trades_per_window,  // per-archetype from archetypes.yaml
+    "keeper_sharpe_threshold": 0.3,  // 0.3 aligns with FreqSwarm default. Planner applies graduation gate on top.
     "parent_sharpe_gate": true,
     "screen_sharpe_threshold": 0.0,  // wide initial screen — let walkforward do the real filtering
     "discard_hashes": [<from swarm_autoresearch_history(seed_name)>],
@@ -530,11 +532,17 @@ For each campaign in "researching" state with ALL run_ids in "failed" status:
 For each completed autoresearch run:
   keepers = full_results.keepers (where is_keeper == true)
 
-  For each keeper, check graduation criteria:
-    - WF Sharpe >= config.graduation.min_wf_sharpe (default 0.5)
-    - WF degradation < config.graduation.max_wf_degradation_pct (default 30%)
-    - Trades per window >= config.graduation.min_trades_per_window (default 20)
-    - Max drawdown < archetype risk_profile.max_drawdown from archetypes.yaml
+  For each keeper, check graduation criteria against the archetype's
+  graduation_gates from archetypes.yaml (config.json overrides still apply):
+    - WF Sharpe >= archetype.graduation_gates.min_wf_sharpe
+    - WF degradation < archetype.graduation_gates.max_wf_degradation_pct
+    - Trades per window >= archetype.graduation_gates.min_trades_per_window
+    - Max drawdown < archetype.graduation_gates.max_drawdown_pct
+
+  Graduation gates are defined per-archetype in archetypes.yaml. Low-frequency
+  archetypes (CARRY_FUNDING, MEAN_REVERSION) have lower trade count requirements.
+  High-frequency archetypes (SCALPING) have higher requirements but lower Sharpe
+  thresholds.
 
   If keeper passes ALL criteria → run graduation (Step 3)
   If no keeper passes but best keeper within 10% of threshold → near_miss (Step 4)
@@ -739,10 +747,12 @@ All files at `/workspace/group/research-planner/`. Directory created on first ru
         "graduated_at": null
       },
       "fitness_targets": {
-        "min_wf_sharpe": 0.5,
-        "max_wf_degradation_pct": 30,
-        "min_trades_per_window": 20,
-        "max_drawdown": 0.10
+        // Populated from archetype.graduation_gates in archetypes.yaml at campaign creation.
+        // config.json overrides apply on top if present.
+        "min_wf_sharpe": 0.4,           // MEAN_REVERSION example
+        "max_wf_degradation_pct": 25,   // MEAN_REVERSION example
+        "min_trades_per_window": 8,     // MEAN_REVERSION example
+        "max_drawdown": 0.10            // MEAN_REVERSION example
       }
     }
   ]
@@ -793,6 +803,8 @@ All files at `/workspace/group/research-planner/`. Directory created on first ru
     "clawteam_rounds_per_campaign": 4
   },
   "graduation": {
+    // These are FALLBACK defaults. Per-archetype values from
+    // archetypes.yaml graduation_gates take priority.
     "min_wf_sharpe": 0.5,
     "max_wf_degradation_pct": 30,
     "min_trades_per_window": 20,
@@ -903,11 +915,14 @@ Include discard_hashes in AutoresearchSpec to skip known-bad mutations.
 ### Bad strategy prevention
 
 - Walk-forward validation is MANDATORY for graduation. No exceptions.
-- Degradation > 30% = rejection even if absolute Sharpe looks good (overfit signal)
-- Trade count floor (20 per WF window) prevents low-sample flukes
-- Max drawdown ceiling is archetype-specific from archetypes.yaml:
-  - TREND_MOMENTUM: 15%, MEAN_REVERSION: 10%, BREAKOUT: 12%
-  - RANGE_BOUND: 8%, SCALPING: 5%, CARRY_FUNDING: 6%, VOLATILITY_HARVEST: 20%
+- All graduation criteria are per-archetype from archetypes.yaml graduation_gates:
+  - TREND_MOMENTUM: 15 trades, 0.5 Sharpe, 30% degradation, 15% max DD
+  - MEAN_REVERSION: 8 trades, 0.4 Sharpe, 25% degradation, 10% max DD
+  - BREAKOUT: 10 trades, 0.5 Sharpe, 35% degradation, 12% max DD
+  - RANGE_BOUND: 15 trades, 0.3 Sharpe, 20% degradation, 8% max DD
+  - SCALPING: 50 trades, 0.3 Sharpe, 20% degradation, 5% max DD
+  - CARRY_FUNDING: 5 trades, 0.3 Sharpe, 15% degradation, 6% max DD
+  - VOLATILITY_HARVEST: 8 trades, 0.6 Sharpe, 40% degradation, 20% max DD
 
 ### State file safety
 

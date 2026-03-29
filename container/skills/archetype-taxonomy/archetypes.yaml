@@ -13,6 +13,11 @@ archetypes:
       typical_win_rate: 0.40
       typical_rr_ratio: 2.5
       sizing_base: 1.0
+    graduation_gates:
+      min_trades_per_window: 15
+      min_wf_sharpe: 0.5
+      max_wf_degradation_pct: 30
+      max_drawdown_pct: 15
     strategy_tags: [trend_following, momentum, ema_crossover, adx_trend]
 
   MEAN_REVERSION:
@@ -26,6 +31,11 @@ archetypes:
       typical_win_rate: 0.60
       typical_rr_ratio: 1.2
       sizing_base: 0.8
+    graduation_gates:
+      min_trades_per_window: 8
+      min_wf_sharpe: 0.4
+      max_wf_degradation_pct: 25
+      max_drawdown_pct: 10
     strategy_tags: [mean_reversion, rsi, bollinger, stochastic]
 
   BREAKOUT:
@@ -39,6 +49,11 @@ archetypes:
       typical_win_rate: 0.35
       typical_rr_ratio: 3.0
       sizing_base: 0.7
+    graduation_gates:
+      min_trades_per_window: 10
+      min_wf_sharpe: 0.5
+      max_wf_degradation_pct: 35
+      max_drawdown_pct: 12
     strategy_tags: [breakout, donchian, range_breakout, volatility_expansion]
 
   RANGE_BOUND:
@@ -52,6 +67,11 @@ archetypes:
       typical_win_rate: 0.65
       typical_rr_ratio: 1.0
       sizing_base: 0.6
+    graduation_gates:
+      min_trades_per_window: 15
+      min_wf_sharpe: 0.3
+      max_wf_degradation_pct: 20
+      max_drawdown_pct: 8
     strategy_tags: [range, support_resistance, grid, ping_pong]
 
   SCALPING:
@@ -65,6 +85,11 @@ archetypes:
       typical_win_rate: 0.55
       typical_rr_ratio: 1.5
       sizing_base: 0.5
+    graduation_gates:
+      min_trades_per_window: 50
+      min_wf_sharpe: 0.3
+      max_wf_degradation_pct: 20
+      max_drawdown_pct: 5
     strategy_tags: [scalping, micro_trend, tick, spread]
 
   CARRY_FUNDING:
@@ -78,6 +103,11 @@ archetypes:
       typical_win_rate: 0.70
       typical_rr_ratio: 0.8
       sizing_base: 0.4
+    graduation_gates:
+      min_trades_per_window: 5
+      min_wf_sharpe: 0.3
+      max_wf_degradation_pct: 15
+      max_drawdown_pct: 6
     strategy_tags: [carry, funding_rate, basis_trade, cash_and_carry]
 
   VOLATILITY_HARVEST:
@@ -91,6 +121,11 @@ archetypes:
       typical_win_rate: 0.35
       typical_rr_ratio: 3.5
       sizing_base: 0.5
+    graduation_gates:
+      min_trades_per_window: 8
+      min_wf_sharpe: 0.6
+      max_wf_degradation_pct: 40
+      max_drawdown_pct: 20
     strategy_tags: [volatility, straddle, gamma, supertrend, atr_expansion]
 
 # Cell grid dimensions
