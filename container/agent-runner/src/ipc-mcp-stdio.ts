@@ -716,6 +716,71 @@ server.tool(
   },
 );
 
+// ─── State Sync ──────────────────────────────────────────────────────
+
+const SUPABASE_USER_ID = process.env.SUPABASE_USER_ID || '';
+
+server.tool(
+  'sync_state_to_supabase',
+  'Push a local state file to Supabase so the console dashboard can read it. Call this after writing campaigns.json, roster.json, deployments.json, or any state file that the console needs.',
+  {
+    state_key: z.string().describe('State identifier: campaigns, roster, deployments, cell_grid, missed_opps, triage_matrix, market_prior'),
+    file_path: z.string().describe('Absolute path to local JSON file to sync'),
+  },
+  async (args) => {
+    try {
+      if (!SUPABASE_URL) throw new Error('SUPABASE_URL not configured');
+      if (!SUPABASE_USER_ID) throw new Error('SUPABASE_USER_ID not configured');
+
+      const raw = fs.readFileSync(args.file_path, 'utf-8');
+      const content = JSON.parse(raw);
+
+      // Read current version for increment
+      let version = 1;
+      try {
+        const existing = await supabaseFetch('agent_state_sync', {
+          params: {
+            'user_id': `eq.${SUPABASE_USER_ID}`,
+            'state_key': `eq.${args.state_key}`,
+            'select': 'version',
+          },
+        });
+        if (Array.isArray(existing) && existing[0]) {
+          version = (existing[0].version || 0) + 1;
+        }
+      } catch {
+        // First write — version stays 1
+      }
+
+      await supabaseFetch('agent_state_sync', {
+        method: 'POST',
+        headers: {
+          'Prefer': 'resolution=merge-duplicates,return=representation',
+        } as Record<string, string>,
+        body: JSON.stringify({
+          user_id: SUPABASE_USER_ID,
+          state_key: args.state_key,
+          data: content,
+          version,
+          synced_at: new Date().toISOString(),
+        }),
+      });
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ success: true, synced: args.state_key, version }),
+        }],
+      };
+    } catch (e) {
+      return {
+        content: [{ type: 'text' as const, text: `Failed to sync ${args.state_key}: ${(e as Error).message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
 // ─── Webhook MCP Tools ────────────────────────────────────────────────
 
 const BOT_RUNNER_DIR = process.env.BOT_RUNNER_DIR || '/workspace/extra/bot-runner';

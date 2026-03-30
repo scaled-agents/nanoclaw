@@ -37,6 +37,20 @@ PART 1: DEPENDENCIES
 
 
 ═══════════════════════════════════════════════════════════════════════
+CONSOLE SYNC — MANDATORY
+═══════════════════════════════════════════════════════════════════════
+
+After EVERY atomic write of campaigns.json, call:
+  sync_state_to_supabase(state_key="campaigns",
+    file_path="/workspace/group/research-planner/campaigns.json")
+
+The console dashboard reads from Supabase, not local files.
+This applies to: Step 5, Step 7, Step 8, graduation writes,
+abandonment writes, and any other campaigns.json modification.
+If you skip the sync call, the console will show stale data.
+
+
+═══════════════════════════════════════════════════════════════════════
 PART 2: PIPELINE STAGES
 ═══════════════════════════════════════════════════════════════════════
 

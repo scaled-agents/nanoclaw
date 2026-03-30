@@ -255,7 +255,7 @@ async function fetchAnthropicUsage(config: SyncConfig): Promise<void> {
     body: JSON.stringify({ operator_id: config.operatorId }),
   });
   if (res.ok) {
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     logger.info(
       { days: body.days?.length ?? 0 },
       '[console-sync] Usage fetch complete',

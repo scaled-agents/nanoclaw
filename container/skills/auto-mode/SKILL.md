@@ -33,6 +33,22 @@ The boundary is sacred: Auto-Mode operates strategies, Research improves them.
 
 ---
 
+## Console Sync — Mandatory
+
+After writing any state file that the console dashboard displays,
+call `sync_state_to_supabase` to push the update. The console reads
+from Supabase, not from local files. Files to sync:
+
+| File | state_key |
+|------|-----------|
+| `deployments.json` | `deployments` |
+| `roster.json` | `roster` |
+| `missed-opportunities.json` | `missed_opps` |
+| `triage-matrix.json` | `triage_matrix` |
+| `cell-grid-latest.json` | `cell_grid` |
+
+---
+
 ## Pre-Staged Deployment Roster
 
 **Core principle:** Don't assemble deployments at opportunity time. Pre-stage them
