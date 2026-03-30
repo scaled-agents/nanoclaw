@@ -449,6 +449,19 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
     log('MCP: x enabled (main group)');
   }
 
+  // LuxAlgo Quant: browser automation for script discovery (main group only)
+  if (containerInput.isMain) {
+    servers.luxalgo = {
+      command: 'node',
+      args: [path.join(path.dirname(mcpServerPath), 'luxalgo-mcp-stdio.js')],
+      env: {
+        NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
+        NANOCLAW_IS_MAIN: '1',
+      },
+    };
+    log('MCP: luxalgo enabled (main group)');
+  }
+
   log(`MCP servers: ${Object.keys(servers).join(', ')}`);
   return servers;
 }
@@ -556,6 +569,7 @@ async function runQuery(
         'mcp__clawteam__*',
         'mcp__orderflow__*',
         'mcp__x__*',
+        'mcp__luxalgo__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
