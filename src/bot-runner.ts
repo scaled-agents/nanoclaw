@@ -599,6 +599,18 @@ async function getBotStatus(deploymentId: string): Promise<BotStatusFile> {
     throw new Error(`Bot ${deploymentId} not found`);
   }
 
+  // Preserve previous paper_pnl in case the API fetch fails
+  let prevPnl: BotStatusFile['paper_pnl'];
+  try {
+    const prevPath = path.join(BOTS_DIR, `${bot.deploymentId}.status.json`);
+    if (fs.existsSync(prevPath)) {
+      const prev = JSON.parse(fs.readFileSync(prevPath, 'utf-8'));
+      prevPnl = prev.paper_pnl;
+    }
+  } catch {
+    // Ignore read errors
+  }
+
   // Fetch live data from bot API
   let pnl: BotStatusFile['paper_pnl'];
   try {
@@ -613,14 +625,25 @@ async function getBotStatus(deploymentId: string): Promise<BotStatusFile> {
           : 0,
         last_updated: new Date().toISOString(),
       };
+    } else {
+      logger.warn(
+        { deploymentId, status: profitRes.status },
+        'Bot profit API returned non-200',
+      );
     }
-  } catch {
-    // Bot may not be ready yet
+  } catch (err) {
+    logger.warn(
+      { deploymentId, err: err instanceof Error ? err.message : String(err) },
+      'Bot profit API fetch failed',
+    );
   }
+
+  // Use fresh pnl if available, otherwise preserve previous
+  const effectivePnl = pnl || prevPnl;
 
   writeBotStatus(bot, {
     last_health_check: new Date().toISOString(),
-    ...(pnl ? { paper_pnl: pnl } : {}),
+    ...(effectivePnl ? { paper_pnl: effectivePnl } : {}),
   });
 
   return JSON.parse(

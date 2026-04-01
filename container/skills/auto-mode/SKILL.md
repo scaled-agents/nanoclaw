@@ -1632,3 +1632,110 @@ state changes (deployment transitions, throttle/pause events,
 circuit breaker activation, paper bot graduation/retirement).
 Those checks are already information-dense and the session
 should close cleanly without adding a backtest.
+
+
+## Paper Bot Validation (every health check)
+
+For each campaign in campaigns.json with state == "paper_trading":
+
+1. READ STATUS
+   Read bot metrics: pnl_pct, trade_count, sharpe, max_dd
+   Update campaign.paper_trading fields
+   sync_state_to_supabase(state_key="campaigns", ...)
+
+2. EARLY RETIREMENT (check before deadline)
+   Read archetype.graduation_gates.max_drawdown_pct from archetypes.yaml
+   Read archetype.graduation_gates.paper_validation[timeframe]
+
+   Retire early if ANY:
+     max_dd > max_drawdown_pct × 1.5 → "drawdown_exceeded"
+     Zero trades AND elapsed > validation_days × 0.25 → "no_signals"
+     5+ consecutive losses AND total loss > 5% → "consecutive_losses"
+
+   On early retire:
+     bot_stop(deployment_id)
+     campaign.state = "retired"
+     Post to feed: "Early retirement: {strategy} — {reason}"
+     aphexdata_record_event(verb_id="kata_retired_early", ...)
+
+3. CHECK DEADLINE
+   deadline = deployed_at + paper_validation[timeframe].days
+   If now < deadline → still validating, skip to step 5
+
+4. GRADUATE OR RETIRE
+   Read from paper_validation[timeframe]: min_trades, min_live_sharpe
+   Read from graduation_gates: max_drawdown_pct
+
+   All pass?
+     trades >= min_trades
+     sharpe >= min_live_sharpe
+     abs(max_dd) <= max_drawdown_pct
+
+   GRADUATE:
+     Write header tags to .py file:
+       # ARCHETYPE: {archetype}
+       # GRADUATED: {date}
+       # LIVE_VALIDATED: {days} days
+       # LIVE_SHARPE: {sharpe}
+       # LIVE_TRADES: {trades}
+       # VALIDATED_PAIRS: {pair}
+       # CORRELATION_GROUP: {group}
+     Add to roster.json
+     sdna_attest + sdna_registry_add (if genome exists)
+     campaign.state = "graduated"
+     Keep bot running
+     If sharpe >= 0.8: flag for signal publishing
+     aphexdata_record_event(verb_id="kata_graduated", ...)
+     Post to feed: "GRADUATED: {strategy} — Sharpe {s}, {trades} trades"
+     Message user with full details
+
+   RETIRE:
+     bot_stop(deployment_id)
+     campaign.state = "retired"
+     Log reason: insufficient_trades / low_sharpe / excessive_drawdown
+     aphexdata_record_event(verb_id="kata_retired", ...)
+     Post to feed: "Retired: {strategy} — {reason}"
+
+5. FILL EMPTY SLOTS
+   active = count state == "paper_trading"
+   available = config.max_paper_bots - active
+
+   If available > 0 AND triage-matrix.json has winners not yet deployed:
+     Deploy best winner (highest favorable_sharpe)
+     Create campaign, set validation deadline
+     Post to feed: "Auto-filling slot: {strategy}"
+
+
+## Portfolio Correlation (daily at 00:00 UTC)
+
+When 3+ paper bots have run concurrently for 7+ days:
+
+1. RECORD: for each active bot, record today's P&L % in
+   /workspace/group/auto-mode/portfolio-correlation.json
+   under daily_returns[date][strategy_name]
+
+2. COMPUTE (weekly): Pearson correlation between all strategy
+   return series. Average pairwise correlation. Portfolio Sharpe:
+     avg_sharpe × sqrt(N / (1 + (N-1) × avg_corr))
+   Estimated annual return: portfolio_sharpe × 0.60
+
+3. STORE:
+   {
+     "daily_returns": { "2026-03-30": { "strat_a": 0.42, ... } },
+     "correlation_matrix": { "strat_a|strat_b": 0.12, ... },
+     "avg_pairwise_correlation": 0.12,
+     "portfolio_sharpe_estimate": 1.15,
+     "estimated_annual_return_pct": 69,
+     "strategy_count": 5,
+     "last_updated": "..."
+   }
+   sync_state_to_supabase(state_key="portfolio_correlation", ...)
+
+4. ALERT if avg correlation > 0.30:
+   "High correlation: {corr} across {n} strategies.
+    Consider filling a different group."
+
+5. WEEKLY SUMMARY (Sunday):
+   "Portfolio: {n} strategies, correlation {corr}, estimated
+    Sharpe {ps}, projected return {ret}%. Target: 1.33 / 80%."
+    tags: ["portfolio", "analysis"]

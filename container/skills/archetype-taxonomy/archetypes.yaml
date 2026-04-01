@@ -3,6 +3,7 @@
 
 archetypes:
   TREND_MOMENTUM:
+    correlation_group: "trend"
     description: "Ride directional moves with momentum confirmation"
     preferred_regimes: [EFFICIENT_TREND]
     anti_regimes: [CHAOS, COMPRESSION]
@@ -27,6 +28,7 @@ archetypes:
     strategy_tags: [trend_following, momentum, ema_crossover, adx_trend]
 
   MEAN_REVERSION:
+    correlation_group: "range"
     description: "Fade extremes in ranging/quiet markets"
     preferred_regimes: [TRANQUIL, COMPRESSION]
     anti_regimes: [EFFICIENT_TREND, CHAOS]
@@ -51,6 +53,7 @@ archetypes:
     strategy_tags: [mean_reversion, rsi, bollinger, stochastic]
 
   BREAKOUT:
+    correlation_group: "trend"
     description: "Catch regime transitions from compression to trend"
     preferred_regimes: [COMPRESSION]
     anti_regimes: [TRANQUIL, CHAOS]
@@ -75,6 +78,7 @@ archetypes:
     strategy_tags: [breakout, donchian, range_breakout, volatility_expansion]
 
   RANGE_BOUND:
+    correlation_group: "range"
     description: "Trade within established ranges with tight risk"
     preferred_regimes: [TRANQUIL]
     anti_regimes: [EFFICIENT_TREND, CHAOS]
@@ -99,6 +103,7 @@ archetypes:
     strategy_tags: [range, support_resistance, grid, ping_pong]
 
   SCALPING:
+    correlation_group: "vol"
     description: "High-frequency small profits in liquid markets"
     preferred_regimes: [EFFICIENT_TREND, TRANQUIL]
     anti_regimes: [CHAOS]
@@ -121,6 +126,7 @@ archetypes:
     strategy_tags: [scalping, micro_trend, tick, spread]
 
   CARRY_FUNDING:
+    correlation_group: "carry"
     description: "Capture funding rate differentials in quiet markets"
     preferred_regimes: [TRANQUIL]
     anti_regimes: [CHAOS, EFFICIENT_TREND]
@@ -143,6 +149,7 @@ archetypes:
     strategy_tags: [carry, funding_rate, basis_trade, cash_and_carry]
 
   VOLATILITY_HARVEST:
+    correlation_group: "vol"
     description: "Profit from volatility expansion in chaotic/compressed markets"
     preferred_regimes: [CHAOS, COMPRESSION]
     anti_regimes: [TRANQUIL]
