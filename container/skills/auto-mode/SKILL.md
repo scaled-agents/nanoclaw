@@ -1739,3 +1739,31 @@ When 3+ paper bots have run concurrently for 7+ days:
    "Portfolio: {n} strategies, correlation {corr}, estimated
     Sharpe {ps}, projected return {ret}%. Target: 1.33 / 80%."
     tags: ["portfolio", "analysis"]
+
+
+## Kata Worker Check (during idle-time, before triage)
+
+Read /workspace/group/research-planner/kata-state.json
+
+If file exists AND round == 4 AND status in ["improved", "stuck"]:
+
+  A Round 3 worker has finished. Run Round 4:
+
+  If status == "improved":
+    Read the modified strategy .py
+    Run 4-window walk-forward (4 calls)
+    Compute favorable_sharpe
+    If >= 0.5: deploy paper bot
+    If >= 0.3: deploy with lower confidence
+    If < 0.3: close Kata, log learnings
+    Update kata-state.json outcome
+    Move to kata-history/
+
+  If status == "stuck":
+    Check current_favorable_sharpe
+    If >= 0.3: deploy best result
+    If < 0.3: close Kata, log learnings
+    Move to kata-history/
+
+This means: parent spawns worker and exits. Auto-mode detects
+completion and handles deployment. No polling, no blocking.
