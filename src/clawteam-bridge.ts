@@ -161,6 +161,9 @@ export async function spawnWorker(
         (m) => ({ ...m, readonly: true }),
       ),
       timeout: timeoutMinutes * 60_000,
+      // Expose leader's freqtrade-user-data to worker (read-only) so strategy
+      // files authored in the leader's session are accessible without copying.
+      leaderFolder,
     },
   };
 
@@ -169,6 +172,7 @@ export async function spawnWorker(
     groupFolder: workerGroup.folder,
     chatJid: `team:${workerId}`,
     isMain: false,
+    isWorker: true,
     isScheduledTask: false,
     assistantName: name,
     model: 'claude-opus-4-6',

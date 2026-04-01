@@ -30,6 +30,12 @@ export interface AllowedRoot {
 export interface ContainerConfig {
   additionalMounts?: AdditionalMount[];
   timeout?: number; // Default: 300000 (5 minutes)
+  /**
+   * When set, mounts the leader group's freqtrade-user-data directory into
+   * the worker container at /workspace/extra/leader-user-data (read-only).
+   * Used by ClawTeam workers so they can access the leader's strategy files.
+   */
+  leaderFolder?: string;
 }
 
 export interface RegisteredGroup {

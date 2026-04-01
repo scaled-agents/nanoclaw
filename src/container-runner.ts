@@ -40,6 +40,7 @@ export interface ContainerInput {
   groupFolder: string;
   chatJid: string;
   isMain: boolean;
+  isWorker?: boolean; // True for ClawTeam worker containers (enables writable swarm-reports/requests)
   isScheduledTask?: boolean;
   assistantName?: string;
   model?: string;
@@ -61,6 +62,7 @@ interface VolumeMount {
 function buildVolumeMounts(
   group: RegisteredGroup,
   isMain: boolean,
+  isWorker: boolean = false,
 ): VolumeMount[] {
   const mounts: VolumeMount[] = [];
   const projectRoot = process.cwd();
@@ -233,6 +235,25 @@ function buildVolumeMounts(
     readonly: false,
   });
 
+  // Leader's Freqtrade user_data (read-only) — gives workers access to strategy files.
+  // The leaderFolder is set by clawteam-bridge when spawning a worker so the worker
+  // can read strategies authored in the leader's session without needing a full copy.
+  if (isWorker && group.containerConfig?.leaderFolder) {
+    const leaderFtUserData = path.join(
+      DATA_DIR,
+      'sessions',
+      group.containerConfig.leaderFolder,
+      'freqtrade-user-data',
+    );
+    if (fs.existsSync(leaderFtUserData)) {
+      mounts.push({
+        hostPath: leaderFtUserData,
+        containerPath: '/workspace/extra/leader-user-data',
+        readonly: true,
+      });
+    }
+  }
+
   // Swarm reports (read-only, shared across groups)
   const swarmReportDir =
     process.env.SWARM_REPORT_DIR || path.join(DATA_DIR, 'swarm-reports');
@@ -244,8 +265,8 @@ function buildVolumeMounts(
     });
   }
 
-  // Swarm request queue (writable for main group only — agents submit run requests here)
-  if (isMain) {
+  // Swarm request queue (writable for main group and workers — agents submit run requests here)
+  if (isMain || isWorker) {
     const swarmRequestDir = path.join(
       process.env.SWARM_REPORT_DIR || path.join(DATA_DIR, 'swarm-reports'),
       'requests',
@@ -445,7 +466,7 @@ export async function runContainerAgent(
   const groupDir = resolveGroupFolderPath(group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
 
-  const mounts = buildVolumeMounts(group, input.isMain);
+  const mounts = buildVolumeMounts(group, input.isMain, input.isWorker ?? false);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
   const containerArgs = buildContainerArgs(mounts, containerName, group.folder);
