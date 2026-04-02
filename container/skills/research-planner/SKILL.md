@@ -553,6 +553,51 @@ After auto-mode health check, if routine and next task > 5 min away:
 
 State file: /workspace/group/research-planner/triage-matrix.json
 
+triage-matrix.json schema:
+```json
+{
+  "version": 1,
+  "last_cycle": "2026-04-01T10:15:00Z",
+  "total_tested": 42,
+  "queue": [
+    {
+      "strategy": "BBRsiMeanRev",
+      "pair": "DOT/USDT:USDT",
+      "timeframe": "1h",
+      "archetype": "MEAN_REVERSION"
+    }
+  ],
+  "results": [
+    {
+      "strategy": "MomentumRSI_BTC",
+      "pair": "BTC/USDT:USDT",
+      "timeframe": "1h",
+      "archetype": "TREND_MOMENTUM",
+      "correlation_group": "trend",
+      "tested_at": "2026-04-01T10:12:00Z",
+      "result": "A",
+      "single_window_sharpe": 1.24,
+      "favorable_sharpe": 0.87,
+      "deployed_as_paper": false
+    }
+  ]
+}
+```
+
+Fields:
+- version: schema version (always 1)
+- last_cycle: ISO timestamp of last triage cycle
+- total_tested: running count of strategies tested
+- queue: FIFO list of untested strategy+pair+timeframe combos
+- results[].result: "A" (Sharpe >= 0.5, worth full WF), "B" (0 < Sharpe < 0.5, marginal), "C" (Sharpe <= 0, discard)
+- results[].correlation_group: one of "trend", "range", "vol", "carry"
+- results[].favorable_sharpe: set after full WF for A-results only
+- results[].deployed_as_paper: true if auto-deployed as paper bot
+
+Queue replenishment: when queue is empty, scan archetypes.yaml for
+untested archetype+pair+timeframe cells ordered by coverage gaps
+(correlation groups with zero graduates get priority).
+
 
 ===============================================================================
 GRADUATION TIERS

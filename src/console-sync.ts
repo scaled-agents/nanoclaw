@@ -139,6 +139,31 @@ function loadCampaigns(): { campaigns: any[]; budget: any | null } {
   return { campaigns: allCampaigns, budget };
 }
 
+function loadTriageMatrix(): any[] {
+  const allResults: any[] = [];
+  try {
+    if (!fs.existsSync(GROUPS_DIR)) return [];
+    for (const folder of fs.readdirSync(GROUPS_DIR)) {
+      const triageFile = path.join(
+        GROUPS_DIR,
+        folder,
+        'research-planner',
+        'triage-matrix.json',
+      );
+      if (!fs.existsSync(triageFile)) continue;
+      try {
+        const data = JSON.parse(fs.readFileSync(triageFile, 'utf-8'));
+        if (data.results) allResults.push(...data.results);
+      } catch {
+        // skip malformed files
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return allResults;
+}
+
 function loadGroupsFromDb(db: Database): any[] {
   try {
     const rows = db.prepare('SELECT * FROM registered_groups').all() as any[];
@@ -334,6 +359,7 @@ export async function runConsoleSync(
   const bots = loadBotStatuses(dataDir);
   const deployments = loadDeployments();
   const { campaigns, budget: campaignBudget } = loadCampaigns();
+  const triageMatrix = loadTriageMatrix();
   const groups = loadGroupsFromDb(db);
   const tasks = loadTasksFromDb(db);
 
@@ -362,6 +388,7 @@ export async function runConsoleSync(
     campaign_budget: campaignBudget,
     cell_grid: research.cellGrid,
     missed_opportunities: research.missedOpportunities,
+    triage_matrix: triageMatrix,
   };
 
   const success = await pushToConsole(config, payload);
@@ -387,6 +414,7 @@ export async function runConsoleSync(
         roster: research.roster.length,
         campaigns: research.campaigns.length,
         cellGrid: research.cellGrid.length,
+        triageMatrix: triageMatrix.length,
       },
       '[console-sync] Push complete',
     );

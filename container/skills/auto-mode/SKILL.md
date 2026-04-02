@@ -1767,3 +1767,55 @@ If file exists AND round == 4 AND status in ["improved", "stuck"]:
 
 This means: parent spawns worker and exits. Auto-mode detects
 completion and handles deployment. No polling, no blocking.
+
+
+## Phase 7: Continuous Triage (after routine health check)
+
+Prerequisites: health check was routine (no state changes made),
+next scheduled task > 5 min away.
+
+1. Read /workspace/group/research-planner/triage-matrix.json
+   - If missing, initialize with empty queue and results
+   - If queue is empty, replenish from archetypes.yaml coverage gaps
+     (prioritize correlation groups with zero graduated strategies)
+
+2. Pop next untested strategy+pair from queue
+
+3. Backtest single recent window (~30 sec via freqtrade-mcp):
+   ```
+   freqtrade_backtest({
+     strategy: "<strategy>",
+     pairs: ["<pair>"],
+     timeframe: "<timeframe>",
+     timerange: "<last-4-months>"
+   })
+   ```
+
+4. Classify result:
+   - A (Sharpe >= 0.5): worth full walk-forward — add to winners
+   - B (0 < Sharpe < 0.5): marginal — log, skip
+   - C (Sharpe <= 0): discard
+
+5. Update triage-matrix.json with result entry:
+   ```json
+   {
+     "strategy": "<name>",
+     "pair": "<pair>",
+     "timeframe": "<tf>",
+     "archetype": "<archetype>",
+     "correlation_group": "<group>",
+     "tested_at": "<now>",
+     "result": "A|B|C",
+     "single_window_sharpe": <number>,
+     "favorable_sharpe": null,
+     "deployed_as_paper": false
+   }
+   ```
+
+6. Report: "Triage: {strategy} on {pair} → {result} (sharpe {n})"
+
+For A-results with auto_deploy_triage_winners enabled:
+  - Run full 4-window walk-forward
+  - Compute favorable_sharpe
+  - If >= 0.5: deploy paper bot, set deployed_as_paper = true
+  - Update favorable_sharpe in triage-matrix.json
