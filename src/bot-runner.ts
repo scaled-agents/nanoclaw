@@ -49,7 +49,7 @@ const BASE_PORT = parseInt(
   10,
 );
 const MAX_BOTS = parseInt(
-  process.env.BOT_RUNNER_MAX_BOTS || botEnv.BOT_RUNNER_MAX_BOTS || '10',
+  process.env.BOT_RUNNER_MAX_BOTS || botEnv.BOT_RUNNER_MAX_BOTS || '20',
   10,
 );
 const BOT_IMAGE =
@@ -314,6 +314,28 @@ function ftApiCall(
   });
 }
 
+/**
+ * Poll the FreqTrade API until it responds to /ping.
+ * Prevents "socket hang up" when toggle_signals is called before uvicorn is ready.
+ */
+async function waitForBotReady(
+  port: number,
+  password: string,
+  timeoutMs = 30_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await ftApiCall(port, 'GET', 'ping', password);
+      if (res.status === 200) return;
+    } catch {
+      // not ready yet
+    }
+    await new Promise((r) => setTimeout(r, 1_000));
+  }
+  logger.warn({ port }, 'Bot API did not become ready within timeout');
+}
+
 // ─── Strategy file resolution ───────────────────────────────────────
 
 function findStrategyFile(
@@ -526,6 +548,9 @@ async function startBotContainer(req: BotRequest): Promise<BotInstance> {
   );
 
   dockerExec(dockerArgs);
+
+  // Wait for FreqTrade API to accept connections before returning
+  await waitForBotReady(port, password);
 
   const bot: BotInstance = {
     deploymentId,
