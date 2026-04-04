@@ -206,6 +206,9 @@ Correlation groups (from archetypes.yaml):
 
 Count graduates per group. Least-covered group gets highest priority.
 
+If `/workspace/group/scoring-config.json` exists, read gap_score weights from it
+instead of the defaults below (keys: `GAP_SCORE_WEIGHTS`, `TF_FREQUENCY_BONUS`).
+
   gap_score = (composite × 2)
             + (hit_count × 0.4)
             + (group_has_zero_graduates × 5)

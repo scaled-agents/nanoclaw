@@ -135,6 +135,12 @@ Use the best WF Sharpe found:
 If no backtest data exists for this cell, score **0** (no edge proven).
 
 **2d. Compute composite + priority fields**
+
+If `/workspace/group/scoring-config.json` exists, read composite weights from it
+instead of the defaults below (keys: `COMPOSITE_WEIGHTS`, `DEPLOY_THRESHOLD`,
+`UNDEPLOY_THRESHOLD`, `MACRO_OVERLAY`, `REGIME_FIT_RUBRIC`, `NET_EDGE_THRESHOLDS`,
+`PORTFOLIO_CONSTRAINTS`).
+
 ```
 composite = (regime_fit × 0.4) + (execution_fit × 0.25) + (net_edge × 0.35)
 ```
