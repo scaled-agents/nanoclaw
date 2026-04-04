@@ -44,6 +44,26 @@ agents-sdk-docs
 # Private MCP servers (cloned separately)
 container/freqtrade-mcp/
 
+# Trading skills (synced from freqtrade-agents via sync.sh)
+container/skills/scout/
+container/skills/strategyzer/
+container/skills/ps2python/
+container/skills/kata-bridge/
+container/skills/monitor/
+container/skills/market-timing/
+container/skills/orderflow/
+container/skills/freqtrade-mcp/
+container/skills/archetype-taxonomy/
+container/skills/ct-sentiment/
+container/skills/macro-sentiment/
+container/skills/onchain-intel/
+container/skills/aphexdna-mcp/
+container/skills/freqhub/
+container/skills/research-metrics/
+container/skills/signal-marketplace/
+container/skills/signal-webhooks/
+container/skills/agent-feed/
+
 # Application overview (local only)
 .systemdocs/
 APPLICATION_OVERVIEW.md
