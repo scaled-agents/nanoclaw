@@ -635,7 +635,7 @@ async function startBotContainer(req: BotRequest): Promise<BotInstance> {
     timeframe,
     dryRun,
     startedAt: new Date().toISOString(),
-    signalsActive: false, // starts stopped, auto-mode enables
+    signalsActive: false, // starts stopped, monitor enables
     status: 'running',
   };
 

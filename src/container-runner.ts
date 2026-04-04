@@ -40,7 +40,6 @@ export interface ContainerInput {
   groupFolder: string;
   chatJid: string;
   isMain: boolean;
-  isWorker?: boolean; // True for ClawTeam worker containers (enables writable swarm-reports/requests)
   isScheduledTask?: boolean;
   assistantName?: string;
   model?: string;
@@ -63,7 +62,6 @@ interface VolumeMount {
 function buildVolumeMounts(
   group: RegisteredGroup,
   isMain: boolean,
-  isWorker: boolean = false,
 ): VolumeMount[] {
   const mounts: VolumeMount[] = [];
   const projectRoot = process.cwd();
@@ -144,7 +142,7 @@ function buildVolumeMounts(
           // https://code.claude.com/docs/en/memory#manage-auto-memory
           CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
           // Raise the per-response output token limit above the 32K SDK default.
-          // Without this, long session-resume catch-up responses (or auto-mode ticks
+          // Without this, long session-resume catch-up responses (or monitor ticks
           // with 31+ accumulated turns) overflow the ceiling and the agent errors.
           CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000',
         },
@@ -249,50 +247,6 @@ function buildVolumeMounts(
     containerPath: '/workspace/group/user_data',
     readonly: false,
   });
-
-  // Leader's Freqtrade user_data (read-only) — gives workers access to strategy files.
-  // The leaderFolder is set by clawteam-bridge when spawning a worker so the worker
-  // can read strategies authored in the leader's session without needing a full copy.
-  if (isWorker && group.containerConfig?.leaderFolder) {
-    const leaderFtUserData = path.join(
-      DATA_DIR,
-      'sessions',
-      group.containerConfig.leaderFolder,
-      'freqtrade-user-data',
-    );
-    if (fs.existsSync(leaderFtUserData)) {
-      mounts.push({
-        hostPath: leaderFtUserData,
-        containerPath: '/workspace/extra/leader-user-data',
-        readonly: true,
-      });
-    }
-  }
-
-  // Swarm reports (read-only, shared across groups)
-  const swarmReportDir =
-    process.env.SWARM_REPORT_DIR || path.join(DATA_DIR, 'swarm-reports');
-  if (fs.existsSync(swarmReportDir)) {
-    mounts.push({
-      hostPath: swarmReportDir,
-      containerPath: '/workspace/extra/swarm-reports',
-      readonly: true,
-    });
-  }
-
-  // Swarm request queue (writable for main group and workers — agents submit run requests here)
-  if (isMain || isWorker) {
-    const swarmRequestDir = path.join(
-      process.env.SWARM_REPORT_DIR || path.join(DATA_DIR, 'swarm-reports'),
-      'requests',
-    );
-    fs.mkdirSync(swarmRequestDir, { recursive: true });
-    mounts.push({
-      hostPath: swarmRequestDir,
-      containerPath: '/workspace/extra/swarm-reports/requests',
-      readonly: false,
-    });
-  }
 
   // Bot runner status (read-only — agents read bot status files)
   const botRunnerBotsDir = path.join(DATA_DIR, 'bot-runner', 'bots');
@@ -413,15 +367,12 @@ function buildContainerArgs(
   if (ofUrl) args.push('-e', `ORDERFLOW_API_URL=${ofUrl}`);
 
   // Raise the per-response output token ceiling above the SDK default (32K).
-  // Long session-resume catch-ups (accumulated auto-mode ticks, research cycles)
+  // Long session-resume catch-ups (accumulated monitor ticks, research cycles)
   // can easily exceed 32K, causing "response exceeded 32000 output token maximum".
   const maxOutputTokens = process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || '64000';
   args.push('-e', `CLAUDE_CODE_MAX_OUTPUT_TOKENS=${maxOutputTokens}`);
 
-  // Swarm: always use the container-side path (matches the bind mount).
-  args.push('-e', 'SWARM_REPORT_DIR=/workspace/extra/swarm-reports');
-
-  // Forward group folder name for swarm request manifests
+  // Forward group folder name
   args.push('-e', `GROUP_FOLDER=${groupFolder}`);
 
   // Forward GitHub token for sdna publish
@@ -485,7 +436,6 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(
     group,
     input.isMain,
-    input.isWorker ?? false,
   );
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;

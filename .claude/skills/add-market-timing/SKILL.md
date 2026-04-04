@@ -4,7 +4,7 @@ description: >
   Add the Market Timing Agent orchestration skill. Scores 560 cells (7 archetypes ×
   20 pairs × 4 timeframes), produces deployment rotation plans, and manages portfolio risk.
   Requires: orderflow, macro-sentiment, onchain-intel, ct-sentiment, archetype-taxonomy,
-  freqtrade-mcp, freqswarm, aphexdata.
+  freqtrade-mcp, aphexdata.
 ---
 
 # Add Market Timing Agent
@@ -31,7 +31,6 @@ All of these must be installed first:
 | ct-sentiment | `[ -f container/skills/ct-sentiment/SKILL.md ]` |
 | archetype-taxonomy | `[ -f container/skills/archetype-taxonomy/archetypes.yaml ]` |
 | freqtrade-mcp | `grep -q 'freqtrade' container/agent-runner/src/index.ts` |
-| freqswarm | `[ -f container/skills/freqswarm/SKILL.md ]` |
 | aphexdata | `grep -q 'aphexdata' container/agent-runner/src/index.ts` |
 
 If any dependency is missing, install it first using the corresponding `/add-*` skill.

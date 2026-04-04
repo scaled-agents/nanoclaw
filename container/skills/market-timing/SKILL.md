@@ -4,7 +4,7 @@ description: >
   Market Timing Agent — scores 560 cells (7 archetypes × 20 pairs × 4 timeframes) with
   regime_fit, execution_fit, net_edge subscores (0–6 scale), produces deployment rotation
   plans, and manages portfolio-level risk. Orchestrates orderflow, macro-sentiment,
-  onchain-intel, ct-sentiment, archetype-taxonomy, freqtrade-mcp, freqswarm, and aphexdata
+  onchain-intel, ct-sentiment, archetype-taxonomy, freqtrade-mcp, and aphexdata
   skills. Trigger on: "market timing", "score cells", "deployment rotation", "what should
   we deploy", "rebalance deployments", "scoring cycle", "run timing agent".
 ---
@@ -24,7 +24,6 @@ deployments, produces rotation plans, and logs all decisions to aphexDATA.
 | `ct-sentiment` | Narrative sentiment context (reports) |
 | `archetype-taxonomy` | Archetype definitions + scoring rubrics |
 | `freqtrade-mcp` | Live bot control (deploy/undeploy) |
-| `freqswarm` | Historical backtest data (net_edge) |
 | `aphexdata` | Audit trail for all decisions |
 | `freqhub` | Strategy registry (strategy lookup) |
 

@@ -1,15 +1,15 @@
 ---
-name: add-auto-mode
+name: add-monitor
 description: >
-  Add autonomous deployment lifecycle monitoring. Runs a 15-minute health
-  check cycle: reads market-timing scores, monitors active bot health,
-  manages deployment state machine (shadow/active/throttled/paused/retired),
-  scans for opportunities and retirement candidates, enforces portfolio risk
-  limits and circuit breakers. Requires: market-timing, orderflow,
-  freqtrade-mcp, aphexdata, archetype-taxonomy.
+  Add pipeline lifecycle monitoring. Runs a 15-minute health check cycle:
+  refreshes regime data (timeframe-aligned), triggers scout gap scans,
+  checks strategyzer runs, monitors kata races, deploys graduated strategies,
+  manages paper bot health, and enforces portfolio constraints.
+  Requires: market-timing, orderflow, freqtrade-mcp, aphexdata,
+  archetype-taxonomy.
 ---
 
-# Add Auto-Mode
+# Add Monitor
 
 Continuous deployment lifecycle monitoring. Runs every 15 minutes to check
 active deployment health, manage state transitions, enforce portfolio constraints,

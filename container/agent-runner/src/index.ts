@@ -341,9 +341,9 @@ function waitForIpcMessage(): Promise<string | null> {
  */
 const CAPABILITY_SERVERS: Record<CapabilityProfile, Set<string>> = {
   core:     new Set(['nanoclaw', 'orderflow']),
-  research: new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'swarm']),
-  trading:  new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'swarm', 'aphexdata', 'botrunner']),
-  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'swarm', 'aphexdata', 'botrunner', 'clawteam', 'x', 'luxalgo']),
+  research: new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna']),
+  trading:  new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner']),
+  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'x', 'luxalgo']),
 };
 
 /**
@@ -412,20 +412,6 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
     };
   }
 
-  // swarm: FreqSwarm reports, triggers, seeds — only if report directory exists
-  if (enabled.has('swarm')) {
-    const swarmDir = process.env.SWARM_REPORT_DIR || '/workspace/extra/swarm-reports';
-    if (fs.existsSync(swarmDir)) {
-      servers.swarm = {
-        command: 'node',
-        args: [path.join(path.dirname(mcpServerPath), 'swarm-mcp-stdio.js')],
-        env: {
-          SWARM_REPORT_DIR: swarmDir,
-        },
-      };
-    }
-  }
-
   // aphexDATA: event ledger — only if URL is configured
   if (enabled.has('aphexdata') && process.env.APHEXDATA_URL) {
     servers.aphexdata = {
@@ -451,18 +437,6 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
         },
       };
     }
-  }
-
-  // clawteam: worker management — main group only
-  if (enabled.has('clawteam') && containerInput.isMain) {
-    servers.clawteam = {
-      command: 'node',
-      args: [path.join(path.dirname(mcpServerPath), 'clawteam-mcp-stdio.js')],
-      env: {
-        NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
-        NANOCLAW_IS_MAIN: '1',
-      },
-    };
   }
 
   // x (Twitter): browser automation — main group only

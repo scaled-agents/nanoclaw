@@ -22,8 +22,6 @@ import { logger } from './logger.js';
 import { RegisteredGroup, ScheduledTask } from './types.js';
 
 const OPUS_PATTERNS = [
-  /research.planner.weekly/i,
-  /clawteam/i,
   /structural.*mutation/i,
   /exit.*design|exit.*A\/B/i,
   /regime.*analysis/i,

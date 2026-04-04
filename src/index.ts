@@ -46,10 +46,8 @@ import {
 } from './db.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
-import { cleanupStaleWorkers } from './clawteam-bridge.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
-import { startSwarmRunner } from './swarm-runner.js';
 import { startBotRunner } from './bot-runner.js';
 import { startConsoleSync } from './console-sync.js';
 import {
@@ -647,19 +645,6 @@ async function main(): Promise<void> {
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
-  });
-  cleanupStaleWorkers();
-  startSwarmRunner({
-    sendMessage: async (jid, rawText) => {
-      const channel = findChannel(channels, jid);
-      if (!channel) {
-        logger.warn({ jid }, 'Swarm notification: no channel owns JID');
-        return;
-      }
-      const text = formatOutbound(rawText);
-      if (text) await channel.sendMessage(jid, text);
-    },
-    registeredGroups: () => registeredGroups,
   });
   startBotRunner({
     sendMessage: async (jid, rawText) => {

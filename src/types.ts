@@ -45,12 +45,6 @@ export interface ContainerConfig {
    * Which MCP servers to load. Defaults to 'full' for main groups, 'research' for others.
    */
   capabilities?: CapabilityProfile;
-  /**
-   * When set, mounts the leader group's freqtrade-user-data directory into
-   * the worker container at /workspace/extra/leader-user-data (read-only).
-   * Used by ClawTeam workers so they can access the leader's strategy files.
-   */
-  leaderFolder?: string;
 }
 
 export interface RegisteredGroup {

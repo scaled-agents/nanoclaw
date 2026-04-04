@@ -1,17 +1,18 @@
 ---
-name: auto-mode
+name: monitor
 description: >
-  Autonomous paper bot lifecycle monitor. Runs every 15 minutes to check
-  paper bot health, manage state transitions (warm-up/proven/published/retired),
-  fill empty slots from triage winners, enforce portfolio correlation limits,
-  and report significant events. Reads market-timing cell grid for scores,
+  Pipeline lifecycle orchestrator. Runs every 15 minutes: refreshes regime data
+  (timeframe-aligned), triggers scout gap scans, checks strategyzer runs,
+  monitors kata races, deploys graduated strategies, manages paper bot health,
+  and enforces portfolio constraints. Reads market-timing cell grid for scores,
   uses orderflow for regime refresh, freqtrade for bot health, aphexdata
-  for audit trail. Trigger on: "auto-mode", "auto mode", "deployment status",
+  for audit trail. Trigger on: "monitor", "monitor status", "show monitor",
+  "pipeline status", "auto-mode", "auto mode", "deployment status",
   "auto check", "portfolio health", "deployment lifecycle", "paper bot status",
-  "what should be running".
+  "what should be running", "show bots", "show deployments", "health check".
 ---
 
-# Auto-Mode — Paper Bot Lifecycle Monitor
+# Monitor — Pipeline Lifecycle Orchestrator
 
 Manages paper trading bot deployments. Reads market-timing scores,
 monitors bot health, gates signals by regime, and graduates winners.
@@ -1212,3 +1213,111 @@ For A-results with auto_deploy_triage_winners enabled:
 | 1d        | 30   | 3-5        | Position trading, full month minimum |
 
 Exact values per archetype are in archetypes.yaml paper_validation section.
+
+---
+
+## Timeframe-Aligned Regime Refresh
+
+Replace the monolithic 4h market-timing refresh with layered
+refresh aligned to each timeframe's natural cadence.
+
+### Refresh Schedule
+
+  Every monitor tick (15 min):
+    Refresh 5m + 15m cells → write reports/cell-grid-5m-15m.json
+    These are the fast-validation timeframes. Fresh regime data
+    means scout scores them with current conditions.
+
+  Every 1 hour (on the hour):
+    Refresh 1h cells → write reports/cell-grid-1h.json
+
+  Every 4 hours (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC):
+    Refresh 4h cells → write reports/cell-grid-4h.json
+
+### Implementation
+
+  The existing market-timing skill handles the actual orderflow
+  API calls and regime classification. Monitor just controls
+  WHEN it runs and for WHICH timeframes.
+
+  On each monitor tick:
+    current_minute = now.minute
+    current_hour = now.hour
+
+    ALWAYS: refresh 5m + 15m cells
+    IF current_minute < 15: also refresh 1h cells
+    IF current_hour % 4 == 0 AND current_minute < 15: also refresh 4h cells
+
+  Also write reports/cell-grid-latest.json as a merged view of
+  all timeframe files (backward compatibility for any code
+  reading the old single-file format).
+
+### Staleness Tracking
+
+  Each cell-grid file includes "refreshed_at" timestamp.
+  Scout checks staleness:
+    5m/15m data > 30 min old → stale warning
+    1h data > 2 hours old → stale warning
+    4h data > 8 hours old → stale warning
+
+---
+
+## Pipeline Integration (Scout → Strategyzer → Kata)
+
+During each monitor tick, after existing health checks:
+
+### 1. Run Scout (every tick, < 5 seconds)
+
+  If paper bot slots available (active < max_paper_bots):
+
+    Trigger scout to refresh reports/gap-report.json.
+    Read the top gap.
+
+    a) Gap has a triage qualifier AND no active kata race:
+       → Trigger kata-bridge (single candidate mode)
+       "Qualifier exists — sending to kata."
+
+    b) Gap has no qualifier AND gap_score > 8.0 AND persistent > 3:
+       → Trigger strategyzer to explore options.
+       "High-priority gap — starting strategyzer."
+
+    c) Gap below threshold:
+       → Log only.
+
+    Only ONE pipeline action per tick. Don't flood.
+
+### 2. Check Kata Race Status (every tick)
+
+  If kata-state.json shows active races:
+    Read each race's kata-state.json for progress.
+    Early winner (favorable_sharpe >= 0.5)? Import and deploy.
+    All complete? Pick winner, import, deploy.
+
+### 3. Deploy Pending Campaigns (every tick)
+
+  Read auto-mode/deployments.json for state == "pending_deploy":
+    Deploy paper bot.
+    Update: state → "paper_trading", set deadline.
+
+### 4. Pipeline Summary (in health check output)
+
+  PIPELINE:
+    Scout: top gap = {archetype} {pair}/{tf} (score {s})
+    Strategyzer: {idle | running | last: {result}}
+    Kata: {idle | racing {n} candidates | winner: {name}}
+    Pending deploys: {count}
+    Regime refresh: 5m/15m {age}m ago, 1h {age}m ago, 4h {age}m ago
+
+---
+
+## Extended Dependencies
+
+| Skill | Purpose |
+|-------|---------|
+| `scout` | Gap scanning (reads/triggers gap-report.json) |
+| `strategyzer` | Strategy generation pipeline (triggered for top gaps) |
+| `kata-bridge` | Race management (monitors kata optimization runs) |
+
+Note: State files remain under `auto-mode/` for backward compatibility.
+The skill directory was renamed from `auto-mode` to `monitor` but the
+state directory path is unchanged.
