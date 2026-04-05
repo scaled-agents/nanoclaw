@@ -224,47 +224,127 @@ async function fetchEventsIncremental(
   }
 }
 
-async function fetchResearchData(config: SyncConfig): Promise<{
+function loadResearchData(): {
   roster: any[];
-  campaigns: any[];
   cellGrid: any[];
   missedOpportunities: any[];
-}> {
-  const empty = {
-    roster: [],
-    campaigns: [],
-    cellGrid: [],
-    missedOpportunities: [],
-  };
+} {
+  const empty = { roster: [], cellGrid: [], missedOpportunities: [] };
   try {
-    const res = await fetch(
-      `${config.aphexdataUrl}/api/v1/research/dashboard`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': config.aphexdataApiKey,
-        },
-      },
-    );
-    if (!res.ok) return empty;
-    const data = (await res.json()) as Record<string, any>;
-    return {
-      roster: data.leaderboard ?? [],
-      campaigns: data.recent_experiments ?? [],
-      cellGrid: data.discovery?.regime_coverage
-        ? Object.entries(data.discovery.regime_coverage).map(
-            ([regime, count]) => ({
-              archetype: regime,
-              coverage: count,
-            }),
-          )
-        : [],
-      missedOpportunities:
-        data.gaps?.map((gap: string) => ({ description: gap })) ?? [],
-    };
+    if (!fs.existsSync(GROUPS_DIR)) return empty;
+    // Read from the first group that has reports (typically whatsapp_main)
+    for (const folder of fs.readdirSync(GROUPS_DIR)) {
+      const groupDir = path.join(GROUPS_DIR, folder);
+
+      // Cell grid — read the full 560-cell grid file
+      const cellGridFile = path.join(
+        groupDir,
+        'reports',
+        'cell-grid-latest.json',
+      );
+      const cellGridRaw: any[] = fs.existsSync(cellGridFile)
+        ? JSON.parse(fs.readFileSync(cellGridFile, 'utf-8'))
+        : [];
+
+      // Gap report — scout's authoritative gap scores
+      const gapReportFile = path.join(
+        groupDir,
+        'reports',
+        'gap-report.json',
+      );
+      const gapScoreMap = new Map<string, number>();
+      if (fs.existsSync(gapReportFile)) {
+        try {
+          const gapData = JSON.parse(
+            fs.readFileSync(gapReportFile, 'utf-8'),
+          );
+          for (const g of gapData.top_gaps ?? []) {
+            // gap-report uses short pairs (e.g. "XRP"), cell grid uses full (e.g. "XRP/USDT:USDT")
+            const pairFull =
+              g.pair.includes('/') ? g.pair : `${g.pair}/USDT:USDT`;
+            gapScoreMap.set(
+              `${g.archetype}:${pairFull}:${g.timeframe}`,
+              g.gap_score,
+            );
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+
+      // Roster — graduated strategies
+      const rosterFile = path.join(groupDir, 'auto-mode', 'roster.json');
+      let roster: any[] = [];
+      if (fs.existsSync(rosterFile)) {
+        const data = JSON.parse(fs.readFileSync(rosterFile, 'utf-8'));
+        roster = data.roster ?? (Array.isArray(data) ? data : []);
+      }
+
+      // Deployments — for deployed_strategy mapping
+      const deploymentsFile = path.join(
+        groupDir,
+        'auto-mode',
+        'deployments.json',
+      );
+      const deployedMap = new Map<string, string>();
+      if (fs.existsSync(deploymentsFile)) {
+        try {
+          const depData = JSON.parse(
+            fs.readFileSync(deploymentsFile, 'utf-8'),
+          );
+          for (const d of depData.deployments ?? []) {
+            if (!['active', 'shadow', 'throttled'].includes(d.state))
+              continue;
+            for (const pair of d.pairs ?? []) {
+              deployedMap.set(
+                `${d.archetype}:${pair}:${d.timeframe}`,
+                d.strategy,
+              );
+            }
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      // Also map from roster validated_pairs
+      for (const r of roster) {
+        for (const pair of r.validated_pairs ?? []) {
+          const key = `${r.archetype}:${pair}:${r.timeframe}`;
+          if (!deployedMap.has(key)) {
+            deployedMap.set(key, r.strategy_name);
+          }
+        }
+      }
+
+      // Merge gap_score, deployed_strategy, and scored_at → last_scored
+      const cellGrid = cellGridRaw.map((c: any) => {
+        const key = `${c.archetype}:${c.pair}:${c.timeframe}`;
+        return {
+          ...c,
+          last_scored: c.scored_at ?? c.last_scored,
+          gap_score: gapScoreMap.get(key) ?? c.gap_score,
+          deployed_strategy: deployedMap.get(key) ?? c.deployed_strategy,
+        };
+      });
+
+      // Missed opportunities
+      const missedFile = path.join(
+        groupDir,
+        'auto-mode',
+        'missed-opportunities.json',
+      );
+      const missedOpportunities = fs.existsSync(missedFile)
+        ? JSON.parse(fs.readFileSync(missedFile, 'utf-8'))
+        : [];
+
+      if (cellGrid.length > 0 || roster.length > 0) {
+        return { roster, cellGrid, missedOpportunities };
+      }
+    }
   } catch {
-    return empty;
+    // ignore read errors
   }
+  return empty;
 }
 
 async function fetchAnthropicUsage(config: SyncConfig): Promise<void> {
@@ -368,7 +448,7 @@ export async function runConsoleSync(
     config,
     cursor,
   );
-  const research = await fetchResearchData(config);
+  const research = loadResearchData();
 
   // Build payload
   const payload = {
@@ -412,7 +492,7 @@ export async function runConsoleSync(
         deployments: deployments.length,
         events: events.length,
         roster: research.roster.length,
-        campaigns: research.campaigns.length,
+        campaigns: campaigns.length,
         cellGrid: research.cellGrid.length,
         triageMatrix: triageMatrix.length,
       },
