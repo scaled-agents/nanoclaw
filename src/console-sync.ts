@@ -21,7 +21,14 @@ const SYNC_INTERVAL_MS = 60_000;
 const MAX_RETRIES = 3;
 const CURSOR_FILE = 'console-sync/cursor.json';
 const USAGE_FETCH_EVERY_N_CYCLES = 60; // ~hourly (60 × 60s)
+const COMPOSITES_FILE = '.cell-grid-composites.json';
 let syncCycleCount = 0;
+
+// Trend boost: track previous scoring cycle composites for delta computation
+let prevComposites: Map<string, number> = new Map();
+let prevScoredAt: string | null = null;
+let currentTrendBoosts: Map<string, number> = new Map();
+let compositesInitialized = false;
 
 const CONSOLE_ENV_KEYS = [
   'CONSOLE_SUPABASE_URL',
@@ -67,6 +74,59 @@ function saveCursor(dataDir: string, cursor: SyncCursor): void {
     fs.mkdirSync(dir, { recursive: true });
   }
   fs.writeFileSync(cursorPath, JSON.stringify(cursor, null, 2));
+}
+
+function loadPrevComposites(groupDir: string): {
+  composites: Map<string, number>;
+  scoredAt: string | null;
+  trendBoosts: Map<string, number>;
+} {
+  const filePath = path.join(groupDir, 'reports', COMPOSITES_FILE);
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      return {
+        composites: new Map(Object.entries(data.composites ?? {})),
+        scoredAt: data.scored_at ?? null,
+        trendBoosts: new Map(Object.entries(data.trend_boosts ?? {})),
+      };
+    }
+  } catch {
+    // Ignore parse errors, start fresh
+  }
+  return { composites: new Map(), scoredAt: null, trendBoosts: new Map() };
+}
+
+function savePrevComposites(
+  groupDir: string,
+  scoredAt: string,
+  composites: Map<string, number>,
+  trendBoosts: Map<string, number>,
+): void {
+  const filePath = path.join(groupDir, 'reports', COMPOSITES_FILE);
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify(
+      {
+        scored_at: scoredAt,
+        composites: Object.fromEntries(composites),
+        trend_boosts: Object.fromEntries(trendBoosts),
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function computeTrendBoost(
+  current: number,
+  previous: number | undefined,
+): number {
+  if (previous === undefined) return 0.0;
+  const delta = current - previous;
+  if (delta > 0.3) return 0.2;
+  if (delta < -0.3) return -0.1;
+  return 0.0;
 }
 
 function loadBotStatuses(dataDir: string): any[] {
@@ -308,7 +368,62 @@ function loadResearchData(): {
         }
       }
 
-      // Merge gap_score, deployed_strategy, and scored_at → last_scored
+      // Trend boost: compare current composites vs previous scoring cycle
+      const currentScoredAt = cellGridRaw[0]?.scored_at ?? null;
+
+      if (!compositesInitialized && cellGridRaw.length > 0) {
+        const persisted = loadPrevComposites(groupDir);
+        prevComposites = persisted.composites;
+        prevScoredAt = persisted.scoredAt;
+        currentTrendBoosts = persisted.trendBoosts;
+        compositesInitialized = true;
+      }
+
+      if (
+        currentScoredAt &&
+        currentScoredAt !== prevScoredAt &&
+        cellGridRaw.length > 0
+      ) {
+        const newTrendBoosts = new Map<string, number>();
+        const newComposites = new Map<string, number>();
+
+        for (const c of cellGridRaw) {
+          const key = `${c.archetype}:${c.pair}:${c.timeframe}`;
+          newComposites.set(key, c.composite ?? 0);
+          newTrendBoosts.set(
+            key,
+            computeTrendBoost(c.composite ?? 0, prevComposites.get(key)),
+          );
+        }
+
+        const rising = [...newTrendBoosts.values()].filter(
+          (v) => v > 0,
+        ).length;
+        const falling = [...newTrendBoosts.values()].filter(
+          (v) => v < 0,
+        ).length;
+        logger.info(
+          {
+            rising,
+            falling,
+            flat: newTrendBoosts.size - rising - falling,
+          },
+          '[console-sync] Trend boost computed for new scoring cycle',
+        );
+
+        prevComposites = newComposites;
+        prevScoredAt = currentScoredAt;
+        currentTrendBoosts = newTrendBoosts;
+
+        savePrevComposites(
+          groupDir,
+          currentScoredAt,
+          newComposites,
+          newTrendBoosts,
+        );
+      }
+
+      // Merge trend_boost, gap_score, deployed_strategy, and scored_at → last_scored
       const cellGrid = cellGridRaw.map((c: any) => {
         const key = `${c.archetype}:${c.pair}:${c.timeframe}`;
         return {
@@ -316,6 +431,7 @@ function loadResearchData(): {
           last_scored: c.scored_at ?? c.last_scored,
           gap_score: gapScoreMap.get(key) ?? c.gap_score,
           deployed_strategy: deployedMap.get(key) ?? c.deployed_strategy,
+          trend_boost: currentTrendBoosts.get(key) ?? 0.0,
         };
       });
 
@@ -486,6 +602,9 @@ export async function runConsoleSync(
         roster: research.roster.length,
         campaigns: campaigns.length,
         cellGrid: research.cellGrid.length,
+        trendBoosted: research.cellGrid.filter(
+          (c: any) => c.trend_boost !== 0,
+        ).length,
         triageMatrix: triageMatrix.length,
       },
       '[console-sync] Push complete',
