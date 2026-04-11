@@ -517,6 +517,28 @@ async function runQuery(
     globalClaudeMd = fs.readFileSync(globalClaudeMdPath, 'utf-8');
   }
 
+  // Load SOUL.md personality layers (voice/tone, not operational rules)
+  // Order: global soul (non-main only) → group soul (always) — last wins on conflict
+  const readIfExists = (p: string): string | undefined => {
+    try {
+      return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const globalSoul = !containerInput.isMain ? readIfExists('/workspace/global/SOUL.md') : undefined;
+  const groupSoul = readIfExists('/workspace/group/SOUL.md');
+
+  // Assemble the full system-prompt append: global CLAUDE.md + global SOUL + group SOUL
+  const appendParts: string[] = [];
+  if (globalClaudeMd) appendParts.push(globalClaudeMd);
+  if (globalSoul) appendParts.push(globalSoul);
+  if (groupSoul) appendParts.push(groupSoul);
+  const systemAppend = appendParts.length > 0 ? appendParts.join('\n\n---\n\n') : undefined;
+  if (globalSoul || groupSoul) {
+    log(`Loaded SOUL.md layers: global=${globalSoul ? 'yes' : 'no'}, group=${groupSoul ? 'yes' : 'no'}`);
+  }
+
   // Discover additional directories mounted at /workspace/extra/*
   // These are passed to the SDK so their CLAUDE.md files are loaded automatically
   const extraDirs: string[] = [];
@@ -551,8 +573,8 @@ async function runQuery(
       additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
       resume: sessionId,
       resumeSessionAt: resumeAt,
-      systemPrompt: globalClaudeMd
-        ? { type: 'preset' as const, preset: 'claude_code' as const, append: globalClaudeMd }
+      systemPrompt: systemAppend
+        ? { type: 'preset' as const, preset: 'claude_code' as const, append: systemAppend }
         : undefined,
       allowedTools: [
         'Bash',

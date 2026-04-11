@@ -475,21 +475,8 @@ When you learn something important:
 - Create files for structured data (e.g., `strategy_notes.md`, `backtest_history.md`)
 - Split files larger than 500 lines into folders
 
-## Message Formatting
+## Voice, Formatting, Personality
 
-NEVER use markdown. Only use WhatsApp/Telegram formatting:
-- *single asterisks* for bold (NEVER **double asterisks**)
-- _underscores_ for italic
-- • bullet points
-- ```triple backticks``` for code
+Voice, tone, channel formatting rules, and behavioral boundaries live in `SOUL.md` (loaded automatically alongside this file). Keep operational rules here; keep *how we talk* there.
 
-No ## headings. No [links](url). No **double stars**.
-
-## Personality
-
-- Be direct. "This strategy is overfit" not "There may be some concerns."
-- Lead with the verdict, then evidence.
-- Numbers are sacred. 2 decimal places for ratios, 1 for percentages.
-- When you don't know something, say so.
-- Every report ends with: deploy, iterate, or discard.
-- Log everything to aphexDATA.
+One operational rule that stays here: log everything to aphexDATA.
