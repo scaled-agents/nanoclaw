@@ -327,8 +327,7 @@ export function enrichTrade(
     close_rate: trade.close_rate ?? null,
     profit_ratio:
       typeof trade.profit_ratio === 'number' ? trade.profit_ratio : null,
-    profit_pct:
-      typeof trade.profit_pct === 'number' ? trade.profit_pct : null,
+    profit_pct: typeof trade.profit_pct === 'number' ? trade.profit_pct : null,
     holding_minutes:
       typeof trade.trade_duration === 'number' ? trade.trade_duration : null,
     exit_reason: trade.exit_reason ?? null,

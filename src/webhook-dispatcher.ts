@@ -216,11 +216,11 @@ function buildPayload(
   // clamped to [floor, ceiling]. Fall back to the deployment's base or
   // the 5% portfolio default so existing consumers always see a number.
   const suggestedStakePct =
-    (typeof deployment?.effective_stake_pct === 'number'
+    typeof deployment?.effective_stake_pct === 'number'
       ? deployment.effective_stake_pct
       : typeof deployment?.base_stake_pct === 'number'
         ? deployment.base_stake_pct
-        : 5);
+        : 5;
   const volumeWeight =
     typeof deployment?.volume_weight === 'number'
       ? deployment.volume_weight
@@ -479,11 +479,9 @@ export function shouldPublishToMarketplace(
     | undefined,
 ): boolean {
   const state = campaign?.state;
-  const fullyGraduated = state === 'graduated_external' || state === 'graduated';
-  return (
-    fullyGraduated &&
-    (campaign?.graduation?.live_sharpe ?? 0) >= 0.8
-  );
+  const fullyGraduated =
+    state === 'graduated_external' || state === 'graduated';
+  return fullyGraduated && (campaign?.graduation?.live_sharpe ?? 0) >= 0.8;
 }
 
 // ─── Main dispatch (called by bot-runner) ────────────────────────────
