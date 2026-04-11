@@ -104,6 +104,9 @@ export interface EnrichedTrade {
   mfe_pct: number | null;
   archetype: string | null;
   timeframe: string | null;
+
+  // Execution realism (Finding 12) — estimated, not measured
+  slippage_estimate_pct: number | null;
 }
 
 /**
@@ -241,6 +244,49 @@ export function computeMfe(trade: FtTradeLike): number | null {
   return Math.max(0, favorable) * 100;
 }
 
+/**
+ * Estimate per-trade slippage from the deployment's volume_weight tier.
+ *
+ * Cannot measure actual signal-vs-fill — FreqTrade doesn't expose the
+ * order-book top at signal dispatch. Uses volume_weight as a liquidity
+ * proxy: high-liquidity pairs (BTC, ETH) have ~1 bps spread; mid-cap
+ * pairs ~3 bps; low-volume pairs ~7 bps. Numbers are tunable in
+ * scoring-config.json EXECUTION_GATES.estimated_slippage_bps.
+ *
+ * Returns null when volume_weight is unavailable so downstream gates
+ * can record the gate as `met: null` rather than blocking spuriously.
+ *
+ * Replaceable: when order-book signal capture lands, swap the body of
+ * this function for measured slippage. Every gate downstream stays the
+ * same — the gate machinery is the durable artifact.
+ */
+export function computeSlippageEstimate(
+  deployment: any | null,
+  executionConfig: any | null = null,
+): number | null {
+  const vw = deployment?.volume_weight;
+  if (typeof vw !== 'number') return null;
+
+  const cfg = executionConfig ?? {
+    estimated_slippage_bps: {
+      high_liquidity: 1,
+      medium_liquidity: 3,
+      low_liquidity: 7,
+    },
+    volume_weight_thresholds: { high: 0.7, medium: 0.3 },
+  };
+
+  const bps =
+    vw >= cfg.volume_weight_thresholds.high
+      ? cfg.estimated_slippage_bps.high_liquidity
+      : vw >= cfg.volume_weight_thresholds.medium
+        ? cfg.estimated_slippage_bps.medium_liquidity
+        : cfg.estimated_slippage_bps.low_liquidity;
+
+  // bps → pct: 1 bps = 0.01%
+  return bps / 100;
+}
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 /**
@@ -339,6 +385,7 @@ export function enrichTrade(
     mfe_pct: computeMfe(trade),
     archetype,
     timeframe,
+    slippage_estimate_pct: computeSlippageEstimate(deployment, null),
   };
 }
 

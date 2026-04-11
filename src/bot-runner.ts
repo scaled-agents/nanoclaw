@@ -30,7 +30,9 @@ import {
   computeTradeSharpe,
   computeDailyEquityCurve,
   computeByRegime,
+  computeExecutionDrag,
   type ByRegime,
+  type ExecutionDrag,
 } from './sharpe.js';
 import {
   enrichTrades,
@@ -149,6 +151,12 @@ interface BotStatusFile {
     // UNKNOWN). Consumers: monitor (regime-aware retirement), dashboard
     // (regime P&L tab), kata (regime-conditional optimization targets).
     by_regime?: ByRegime;
+    // Finding 12 — execution drag rollup. Slippage-aware quality score.
+    // Null when no enriched trades carry slippage estimates (legacy data
+    // or deployment lacks volume_weight). Consumers: monitor Trigger J
+    // (pause on execution drag), monitor Step 5 (graduation gate),
+    // dashboard (ExQ column), edge audit Finding 12.
+    execution?: ExecutionDrag | null;
     last_updated: string;
   };
 }
@@ -903,6 +911,15 @@ async function getBotStatus(deploymentId: string): Promise<BotStatusFile> {
           ? computeByRegime(enrichedTrades)
           : undefined;
 
+      // Finding 12 — execution drag rollup. Returns null when no enriched
+      // trades carry slippage estimates (legacy data, or deployment lacks
+      // volume_weight). Downstream gates handle the null case as
+      // "informational only" — never blocks spuriously.
+      const execution =
+        enrichedTrades && enrichedTrades.length > 0
+          ? computeExecutionDrag(enrichedTrades)
+          : null;
+
       pnl = {
         profit_pct: profit.profit_all_percent || 0,
         trade_count: profit.trade_count || 0,
@@ -919,6 +936,7 @@ async function getBotStatus(deploymentId: string): Promise<BotStatusFile> {
         ...(byRegime && Object.keys(byRegime).length > 0
           ? { by_regime: byRegime }
           : {}),
+        ...(execution ? { execution } : {}),
         last_updated: new Date().toISOString(),
       };
     } else {

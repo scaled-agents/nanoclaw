@@ -131,6 +131,35 @@
     "max_consecutive_losses": 4
   },
 
+  "OVERFITTING_GATES": {
+    "_comment": "Bailey & Lopez de Prado statistical-significance gates. DSR ≥ 1.96 means observed Sharpe is significant at 5% after correcting for selection bias from n_strategies_tried. PBO ≤ 0.30 means probability of backtest overfitting is acceptable. PBO > 0.50 forces immediate eviction. min_trades_for_dsr prevents the gate from blocking on day 1 when DSR has huge standard error.",
+    "enabled": true,
+    "dsr_threshold": 1.96,
+    "pbo_max": 0.30,
+    "pbo_evict": 0.50,
+    "deadline_extension_on_low_dsr": 1.5,
+    "min_trades_for_dsr": 10,
+    "min_kata_experiments_for_dsr_enforcement": 5
+  },
+
+  "EXECUTION_GATES": {
+    "_comment": "Slippage-aware graduation (Finding 12). execution_quality = 1 - (avg_slippage / avg_abs_pnl), clamped to [0,1]. Estimated from volume_weight tier until order-book signal capture lands. Pause-not-retire on collapse: the strategy is fine in theory, the venue is wrong. The estimator is replaceable; the gate machinery is the durable artifact.",
+    "enabled": true,
+    "min_execution_quality": 0.60,
+    "pause_threshold": 0.50,
+    "slippage_pnl_ratio_max": 0.50,
+    "min_trades_for_gate": 10,
+    "estimated_slippage_bps": {
+      "high_liquidity": 1,
+      "medium_liquidity": 3,
+      "low_liquidity": 7
+    },
+    "volume_weight_thresholds": {
+      "high": 0.70,
+      "medium": 0.30
+    }
+  },
+
   "DEPLOY_VERIFICATION": {
     "enabled": true,
     "min_win_rate": 0.30,

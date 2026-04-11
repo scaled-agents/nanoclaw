@@ -154,6 +154,7 @@ interface EnrichedTradeLike {
   regime_at_entry?: string | null;
   mae_pct?: number | null;
   mfe_pct?: number | null;
+  slippage_estimate_pct?: number | null;
 }
 
 export function computeByRegime(trades: EnrichedTradeLike[]): ByRegime {
@@ -239,6 +240,77 @@ export function computeByRegime(trades: EnrichedTradeLike[]): ByRegime {
   }
 
   return result;
+}
+
+/**
+ * Finding 12 — Execution drag rollup.
+ *
+ * Aggregates per-trade slippage estimates into a gate-ready metrics block
+ * the monitor can read in O(1). Returns null when no trades carry slippage
+ * estimates (legacy data, or deployment lacks volume_weight) so monitor
+ * Steps 4 and 5 record the gate as `met: null` rather than blocking
+ * spuriously.
+ *
+ * execution_quality:
+ *   1.0 → slippage is negligible vs. trade P&L (ideal)
+ *   0.0 → slippage eats the entire edge
+ *   < 0 → clamped to 0; means avg_slippage > avg_abs_pnl
+ *
+ * Formula: 1 - (avg_slippage_per_trade / avg_abs_pnl_per_trade), clamped.
+ *
+ * v1 ships estimated slippage from volume_weight tier; when order-book
+ * signal capture lands, only the estimator changes. This rollup and every
+ * downstream gate stay the same.
+ */
+export interface ExecutionDrag {
+  total_slippage_pct: number;
+  avg_slippage_per_trade: number;
+  slippage_as_pct_of_pnl: number;
+  execution_quality: number;
+  n_trades_with_slippage: number;
+}
+
+export function computeExecutionDrag(
+  trades: EnrichedTradeLike[],
+): ExecutionDrag | null {
+  if (!trades || trades.length === 0) return null;
+
+  const tradesWithSlip = trades.filter(
+    (t) =>
+      typeof t.slippage_estimate_pct === 'number' &&
+      typeof t.profit_pct === 'number' &&
+      t.profit_pct !== null,
+  );
+  if (tradesWithSlip.length === 0) return null;
+
+  const totalSlip = tradesWithSlip.reduce(
+    (s, t) => s + (t.slippage_estimate_pct as number),
+    0,
+  );
+  const avgSlip = totalSlip / tradesWithSlip.length;
+
+  const totalAbsPnl = tradesWithSlip.reduce(
+    (s, t) => s + Math.abs(t.profit_pct as number),
+    0,
+  );
+  const avgAbsPnl = totalAbsPnl / tradesWithSlip.length;
+
+  // slippage_as_pct_of_pnl: when there is no realized P&L at all, treat
+  // it as worst-case (slippage is 100% of the (zero) edge).
+  const slipAsPctOfPnl = totalAbsPnl > 0 ? totalSlip / totalAbsPnl : 1.0;
+
+  // execution_quality: clamped to [0,1]. Negative would mean
+  // avg_slippage > avg_abs_pnl, which is a complete edge collapse.
+  const rawQuality = avgAbsPnl > 0 ? 1.0 - avgSlip / avgAbsPnl : 0.0;
+  const executionQuality = Math.max(0.0, Math.min(1.0, rawQuality));
+
+  return {
+    total_slippage_pct: totalSlip,
+    avg_slippage_per_trade: avgSlip,
+    slippage_as_pct_of_pnl: slipAsPctOfPnl,
+    execution_quality: executionQuality,
+    n_trades_with_slippage: tradesWithSlip.length,
+  };
 }
 
 /**
