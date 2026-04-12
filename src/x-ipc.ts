@@ -5,7 +5,7 @@
  * Spawns script subprocesses that use Playwright browser automation.
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -57,13 +57,43 @@ function runScript(script: string, args: object): Promise<SkillResult> {
     proc.stdin.write(JSON.stringify(args));
     proc.stdin.end();
 
+    // On Windows, SIGTERM only kills the shell — Chrome child processes
+    // survive and hold the browser profile lock, breaking subsequent calls.
+    // Use taskkill /F /T to kill the entire process tree on timeout.
+    const killTree = () => {
+      if (proc.pid == null) return;
+      if (process.platform === 'win32') {
+        try {
+          execSync(`taskkill /F /T /PID ${proc.pid}`, { stdio: 'ignore' });
+        } catch {
+          // process may have already exited
+        }
+      } else {
+        proc.kill('SIGTERM');
+      }
+    };
+
     const timer = setTimeout(() => {
-      proc.kill('SIGTERM');
+      killTree();
       resolve({ success: false, message: 'Script timed out (120s)' });
     }, 120000);
 
     proc.on('close', (code) => {
       clearTimeout(timer);
+      // Try parsing the last line of stdout as JSON — the browser scripts
+      // always write a JSON result to stdout, even on error (exit code 1).
+      // Only fall back to stderr/code if stdout doesn't contain valid JSON.
+      const trimmedStdout = stdout.trim();
+      if (trimmedStdout) {
+        try {
+          const lines = trimmedStdout.split('\n');
+          const parsed = JSON.parse(lines[lines.length - 1]) as SkillResult;
+          resolve(parsed);
+          return;
+        } catch {
+          // stdout wasn't valid JSON — fall through
+        }
+      }
       if (code !== 0) {
         const detail = stderr.trim().slice(-500);
         resolve({
@@ -72,15 +102,10 @@ function runScript(script: string, args: object): Promise<SkillResult> {
         });
         return;
       }
-      try {
-        const lines = stdout.trim().split('\n');
-        resolve(JSON.parse(lines[lines.length - 1]));
-      } catch {
-        resolve({
-          success: false,
-          message: `Failed to parse output: ${stdout.slice(0, 200)}`,
-        });
-      }
+      resolve({
+        success: false,
+        message: `Failed to parse output: ${trimmedStdout.slice(0, 200)}`,
+      });
     });
 
     proc.on('error', (err) => {
