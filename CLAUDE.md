@@ -18,6 +18,7 @@ Single Node.js process with skill-based channel system. Channels (WhatsApp, Tele
 | `src/container-runner.ts` | Spawns agent containers with mounts |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/db.ts` | SQLite operations |
+| `groups/{name}/MISSION.md` | Per-group mission: purpose, success criteria, anti-goals (inherits `groups/global/MISSION.md`) |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
 | `groups/{name}/SOUL.md` | Per-group personality: voice, tone, channel rules (inherits `groups/global/SOUL.md`) |
 | `container/skills/agent-browser.md` | Browser automation tool (available to all agents via Bash) |

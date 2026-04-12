@@ -19,6 +19,8 @@ groups/global/*
 !groups/global/CLAUDE.md
 !groups/main/SOUL.md
 !groups/global/SOUL.md
+!groups/main/MISSION.md
+!groups/global/MISSION.md
 
 # Secrets
 *.keys.json

@@ -517,8 +517,10 @@ async function runQuery(
     globalClaudeMd = fs.readFileSync(globalClaudeMdPath, 'utf-8');
   }
 
-  // Load SOUL.md personality layers (voice/tone, not operational rules)
-  // Order: global soul (non-main only) → group soul (always) — last wins on conflict
+  // Load MISSION.md (purpose/why) and SOUL.md (voice/how) layers.
+  // Final system-prompt order: mission → claude → soul  (why → what → how)
+  // Later layers win on conflict, so soul formatting rules override any voice
+  // guidance that might accidentally live in mission or claude layers.
   const readIfExists = (p: string): string | undefined => {
     try {
       return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : undefined;
@@ -526,17 +528,24 @@ async function runQuery(
       return undefined;
     }
   };
+  const globalMission = !containerInput.isMain ? readIfExists('/workspace/global/MISSION.md') : undefined;
+  const groupMission = readIfExists('/workspace/group/MISSION.md');
   const globalSoul = !containerInput.isMain ? readIfExists('/workspace/global/SOUL.md') : undefined;
   const groupSoul = readIfExists('/workspace/group/SOUL.md');
 
-  // Assemble the full system-prompt append: global CLAUDE.md + global SOUL + group SOUL
+  // Assemble the full system-prompt append: mission → claude → soul
   const appendParts: string[] = [];
+  if (globalMission) appendParts.push(globalMission);
+  if (groupMission) appendParts.push(groupMission);
   if (globalClaudeMd) appendParts.push(globalClaudeMd);
   if (globalSoul) appendParts.push(globalSoul);
   if (groupSoul) appendParts.push(groupSoul);
   const systemAppend = appendParts.length > 0 ? appendParts.join('\n\n---\n\n') : undefined;
-  if (globalSoul || groupSoul) {
-    log(`Loaded SOUL.md layers: global=${globalSoul ? 'yes' : 'no'}, group=${groupSoul ? 'yes' : 'no'}`);
+  if (globalMission || groupMission || globalSoul || groupSoul) {
+    log(
+      `Loaded context layers: mission=${globalMission || groupMission ? 'yes' : 'no'}, ` +
+        `soul=${globalSoul || groupSoul ? 'yes' : 'no'}`,
+    );
   }
 
   // Discover additional directories mounted at /workspace/extra/*
