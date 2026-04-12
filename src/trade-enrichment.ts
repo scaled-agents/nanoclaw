@@ -105,8 +105,10 @@ export interface EnrichedTrade {
   archetype: string | null;
   timeframe: string | null;
 
-  // Execution realism (Finding 12) — estimated, not measured
-  slippage_estimate_pct: number | null;
+  // Execution realism (Finding 12)
+  slippage_estimate_pct: number | null;  // DEPRECATED — use slippage_pct
+  slippage_pct: number | null;
+  slippage_source: 'measured' | 'estimate' | 'shortfall' | null;
 }
 
 /**
@@ -127,6 +129,9 @@ export interface FtTradeLike {
   min_rate?: number;
   trade_duration?: number;
   exit_reason?: string;
+  // Track A: placement slippage (already in FreqTrade response, just undeclared)
+  open_rate_requested?: number | null;
+  close_rate_requested?: number | null;
 }
 
 // ─── Store I/O ──────────────────────────────────────────────────────
@@ -287,6 +292,67 @@ export function computeSlippageEstimate(
   return bps / 100;
 }
 
+/**
+ * Measured placement slippage: |fill − requested| / requested.
+ *
+ * Track A of the measured-execution plan. Uses FreqTrade's
+ * open_rate_requested (the price the bot asked for) vs open_rate (the
+ * actual fill). Adds exit-side slippage when the trade is closed and
+ * close_rate_requested is available.
+ *
+ * Returns null when requested fields are absent, triggering fallback
+ * to computeSlippageEstimate() in the enrichment chain.
+ *
+ * Note: in dry-run, open_rate_requested === open_rate (FreqTrade
+ * simulates fills at candle price), so measured slippage is ~0. This
+ * is correct — there IS no slippage in simulation.
+ */
+export function computeSlippageMeasured(trade: FtTradeLike): number | null {
+  const openReq = trade.open_rate_requested;
+  const openFill = trade.open_rate;
+  if (typeof openReq !== 'number' || openReq <= 0 ||
+      typeof openFill !== 'number' || openFill <= 0) {
+    return null;
+  }
+
+  const entrySlip = Math.abs(openFill - openReq) / openReq * 100;
+
+  let exitSlip = 0;
+  const closeReq = trade.close_rate_requested;
+  const closeFill = trade.close_rate;
+  if (typeof closeReq === 'number' && closeReq > 0 &&
+      typeof closeFill === 'number' && closeFill > 0) {
+    exitSlip = Math.abs(closeFill - closeReq) / closeReq * 100;
+  }
+
+  return entrySlip + exitSlip;
+}
+
+/**
+ * Implementation shortfall: |fill − decision_price| / decision_price.
+ *
+ * Track B of the measured-execution plan. The decision price is the
+ * candle close at the moment the strategy generated its signal, stamped
+ * via `trade.set_custom_data('signal_close', ...)` in the ExecBenchmark
+ * mixin injected by kata-bridge at graduation.
+ *
+ * Returns null when signalClose is unavailable, triggering fallback
+ * to computeSlippageMeasured() → computeSlippageEstimate().
+ *
+ * Shows meaningful spread even in dry-run because there is a real
+ * timing gap between signal generation and simulated fill.
+ */
+export function computeSlippageShortfall(
+  trade: FtTradeLike,
+  signalClose: number | null | undefined,
+): number | null {
+  if (typeof signalClose !== 'number' || signalClose <= 0 ||
+      typeof trade.open_rate !== 'number' || trade.open_rate <= 0) {
+    return null;
+  }
+  return Math.abs(trade.open_rate - signalClose) / signalClose * 100;
+}
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 /**
@@ -345,6 +411,7 @@ export function enrichTrade(
   deployment: any | null,
   archetype: string | null,
   timeframe: string | null,
+  signalClose?: number | null,
 ): EnrichedTrade {
   const store = readStore();
   const stored =
@@ -385,13 +452,35 @@ export function enrichTrade(
     mfe_pct: computeMfe(trade),
     archetype,
     timeframe,
-    slippage_estimate_pct: computeSlippageEstimate(deployment, null),
+    // Three-tier fallback: shortfall > measured > estimated > null
+    ...(() => {
+      const shortfall = computeSlippageShortfall(trade, signalClose ?? null);
+      const measured = computeSlippageMeasured(trade);
+      const estimated = computeSlippageEstimate(deployment, null);
+      const pct = shortfall ?? measured ?? estimated;
+      const source: EnrichedTrade['slippage_source'] =
+        shortfall != null ? 'shortfall'
+        : measured != null ? 'measured'
+        : estimated != null ? 'estimate'
+        : null;
+      return {
+        slippage_estimate_pct: pct,  // deprecated alias
+        slippage_pct: pct,
+        slippage_source: source,
+      };
+    })(),
   };
 }
 
 /**
  * Enrich a list of FreqTrade trades in one pass. Convenience wrapper — does
  * a single read of the store instead of once per trade.
+ *
+ * Optional signalCloseMap (Track B): keyed by trade_id, maps to the candle
+ * close price at signal time (from `trade.set_custom_data('signal_close', ...)`).
+ * When present, enables the shortfall tier of the three-tier slippage fallback.
+ * Pass only for new trades where custom_data has been fetched — the bulk
+ * getBotStatus path omits it (falls through to measured > estimated).
  */
 export function enrichTrades(
   deploymentId: string,
@@ -400,10 +489,16 @@ export function enrichTrades(
   deployment: any | null,
   archetype: string | null,
   timeframe: string | null,
+  signalCloseMap?: Map<number | string, number>,
 ): EnrichedTrade[] {
-  return trades.map((t) =>
-    enrichTrade(deploymentId, t, marketPrior, deployment, archetype, timeframe),
-  );
+  return trades.map((t) => {
+    const sc = signalCloseMap && t.trade_id != null
+      ? signalCloseMap.get(t.trade_id) ?? null
+      : null;
+    return enrichTrade(
+      deploymentId, t, marketPrior, deployment, archetype, timeframe, sc,
+    );
+  });
 }
 
 /**

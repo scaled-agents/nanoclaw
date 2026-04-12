@@ -27,8 +27,13 @@ const COMPOSITES_FILE = '.cell-grid-composites.json';
 // sometimes shortens names (e.g. "CARRY" instead of "CARRY_FUNDING").
 // Normalize before pushing to Supabase so the frontend always finds them.
 const CANONICAL_ARCHETYPES = new Set([
-  'TREND_MOMENTUM', 'BREAKOUT', 'MEAN_REVERSION', 'RANGE_BOUND',
-  'SCALPING', 'VOLATILITY_HARVEST', 'CARRY_FUNDING',
+  'TREND_MOMENTUM',
+  'BREAKOUT',
+  'MEAN_REVERSION',
+  'RANGE_BOUND',
+  'SCALPING',
+  'VOLATILITY_HARVEST',
+  'CARRY_FUNDING',
 ]);
 const ARCHETYPE_ALIASES: Record<string, string> = {
   CARRY: 'CARRY_FUNDING',
@@ -463,14 +468,27 @@ function loadResearchData(): {
           ...c,
           archetype: canonical,
           last_scored: c.scored_at ?? c.last_scored,
-          gap_score: gapScoreMap.get(key) ?? gapScoreMap.get(`${c.archetype}:${c.pair}:${c.timeframe}`) ?? c.gap_score,
-          deployed_strategy: deployedMap.get(key) ?? deployedMap.get(`${c.archetype}:${c.pair}:${c.timeframe}`) ?? c.deployed_strategy,
-          trend_boost: currentTrendBoosts.get(key) ?? currentTrendBoosts.get(`${c.archetype}:${c.pair}:${c.timeframe}`) ?? 0.0,
+          gap_score:
+            gapScoreMap.get(key) ??
+            gapScoreMap.get(`${c.archetype}:${c.pair}:${c.timeframe}`) ??
+            c.gap_score,
+          deployed_strategy:
+            deployedMap.get(key) ??
+            deployedMap.get(`${c.archetype}:${c.pair}:${c.timeframe}`) ??
+            c.deployed_strategy,
+          trend_boost:
+            currentTrendBoosts.get(key) ??
+            currentTrendBoosts.get(`${c.archetype}:${c.pair}:${c.timeframe}`) ??
+            0.0,
         });
       }
       if (normalizedCount > 0 || droppedCount > 0) {
         logger.info(
-          { normalized: normalizedCount, dropped: droppedCount, total: cellGridRaw.length },
+          {
+            normalized: normalizedCount,
+            dropped: droppedCount,
+            total: cellGridRaw.length,
+          },
           '[console-sync] Cell grid archetype cleanup',
         );
       }

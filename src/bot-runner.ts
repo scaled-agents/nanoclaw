@@ -438,6 +438,33 @@ async function waitForBotReady(
   logger.warn({ port }, 'Bot API did not become ready within timeout');
 }
 
+/**
+ * Fetch custom_data for a single trade via /trade/<id>.
+ *
+ * Track B (measured execution): graduated strategies stamp `signal_close`
+ * via `trade.set_custom_data()` in the ExecBenchmark mixin. This function
+ * retrieves that value for newly closed trades so enrichTrades can compute
+ * implementation shortfall. Only called for NEW trades (1-2 per health
+ * check cycle), never bulk.
+ *
+ * Returns the signal_close value or null on any failure — non-critical.
+ */
+async function fetchSignalClose(
+  port: number,
+  password: string,
+  tradeId: number,
+): Promise<number | null> {
+  try {
+    const res = await ftApiCall(port, 'GET', `trade/${tradeId}`, password);
+    if (res.status === 200) {
+      const data = JSON.parse(res.body);
+      const sc = data?.custom_data?.signal_close?.value;
+      return typeof sc === 'number' && sc > 0 ? sc : null;
+    }
+  } catch { /* non-critical — falls through to measured > estimated */ }
+  return null;
+}
+
 // ─── Strategy file resolution ───────────────────────────────────────
 
 function findStrategyFile(
@@ -1525,16 +1552,34 @@ async function healthCheckBots(): Promise<void> {
               const tradesData = JSON.parse(tradesRes.body);
               const deployment = readDeployment(deploymentId);
               const marketPrior = readMarketPrior();
+
+              // Track B: fetch signal_close custom_data for new trades.
+              // Only 1-2 trades per cycle — individual /trade/<id> calls
+              // are acceptable overhead for implementation shortfall data.
+              const signalCloseMap = new Map<number | string, number>();
+              const newTrades = (tradesData.trades || []) as FtTradeLike[];
+              for (const nt of newTrades) {
+                if (typeof nt.trade_id === 'number') {
+                  const sc = await fetchSignalClose(
+                    bot.port, bot.password, nt.trade_id,
+                  );
+                  if (sc != null) signalCloseMap.set(nt.trade_id, sc);
+                }
+              }
+
               // Finding 2: enrich each closed trade with full attribution
               // context before dispatch. enrichTrades hydrates regime_at_entry
               // from the stamped entry snapshot when available.
+              // Track B: signalCloseMap enables shortfall tier for trades
+              // whose strategy stamps signal_close via ExecBenchmark mixin.
               const enriched = enrichTrades(
                 deploymentId,
-                (tradesData.trades || []) as FtTradeLike[],
+                newTrades,
                 marketPrior,
                 deployment,
                 deployment?.archetype ?? null,
                 status.timeframe ?? null,
+                signalCloseMap.size > 0 ? signalCloseMap : undefined,
               );
 
               for (let i = 0; i < (tradesData.trades || []).length; i++) {

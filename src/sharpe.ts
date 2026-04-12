@@ -155,6 +155,8 @@ interface EnrichedTradeLike {
   mae_pct?: number | null;
   mfe_pct?: number | null;
   slippage_estimate_pct?: number | null;
+  slippage_pct?: number | null;
+  slippage_source?: 'measured' | 'estimate' | 'shortfall' | null;
 }
 
 export function computeByRegime(trades: EnrichedTradeLike[]): ByRegime {
@@ -268,6 +270,9 @@ export interface ExecutionDrag {
   slippage_as_pct_of_pnl: number;
   execution_quality: number;
   n_trades_with_slippage: number;
+  n_measured: number;
+  n_estimated: number;
+  n_shortfall: number;
 }
 
 export function computeExecutionDrag(
@@ -275,18 +280,30 @@ export function computeExecutionDrag(
 ): ExecutionDrag | null {
   if (!trades || trades.length === 0) return null;
 
+  // Read slippage_pct (new), fall back to slippage_estimate_pct (deprecated)
+  const getSlip = (t: EnrichedTradeLike): number | null | undefined =>
+    t.slippage_pct ?? t.slippage_estimate_pct;
+
   const tradesWithSlip = trades.filter(
     (t) =>
-      typeof t.slippage_estimate_pct === 'number' &&
+      typeof getSlip(t) === 'number' &&
       typeof t.profit_pct === 'number' &&
       t.profit_pct !== null,
   );
   if (tradesWithSlip.length === 0) return null;
 
-  const totalSlip = tradesWithSlip.reduce(
-    (s, t) => s + (t.slippage_estimate_pct as number),
-    0,
-  );
+  let nMeasured = 0;
+  let nEstimated = 0;
+  let nShortfall = 0;
+
+  const totalSlip = tradesWithSlip.reduce((s, t) => {
+    // Count sources
+    const src = t.slippage_source;
+    if (src === 'shortfall') nShortfall++;
+    else if (src === 'measured') nMeasured++;
+    else nEstimated++;
+    return s + (getSlip(t) as number);
+  }, 0);
   const avgSlip = totalSlip / tradesWithSlip.length;
 
   const totalAbsPnl = tradesWithSlip.reduce(
@@ -310,6 +327,9 @@ export function computeExecutionDrag(
     slippage_as_pct_of_pnl: slipAsPctOfPnl,
     execution_quality: executionQuality,
     n_trades_with_slippage: tradesWithSlip.length,
+    n_measured: nMeasured,
+    n_estimated: nEstimated,
+    n_shortfall: nShortfall,
   };
 }
 
