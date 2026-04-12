@@ -370,7 +370,11 @@ function buildContainerArgs(
   if (ofUrl) args.push('-e', `ORDERFLOW_API_URL=${ofUrl}`);
 
   // TV Signals (TradingView webhook processing)
-  for (const tvKey of ['TV_WEBHOOK_SECRET', 'TV_MANUAL_BOT_URL', 'TV_WEBHOOK_PORT']) {
+  for (const tvKey of [
+    'TV_WEBHOOK_SECRET',
+    'TV_MANUAL_BOT_URL',
+    'TV_WEBHOOK_PORT',
+  ]) {
     const val = envVal(tvKey);
     if (val) args.push('-e', `${tvKey}=${val}`);
   }

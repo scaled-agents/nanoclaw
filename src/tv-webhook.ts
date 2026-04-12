@@ -21,10 +21,7 @@ import { RegisteredGroup } from './types.js';
 
 // ─── Configuration ──────────────────────────────────────────────────
 
-const tvEnv = readEnvFile([
-  'TV_WEBHOOK_SECRET',
-  'TV_WEBHOOK_PORT',
-]);
+const tvEnv = readEnvFile(['TV_WEBHOOK_SECRET', 'TV_WEBHOOK_PORT']);
 
 const WEBHOOK_PORT = parseInt(
   process.env.TV_WEBHOOK_PORT || tvEnv.TV_WEBHOOK_PORT || '3200',
@@ -82,7 +79,10 @@ function loadTvSources(groupFolder: string): TvSource[] {
   }
 }
 
-function verifySecret(payload: Record<string, unknown>, source: TvSource): boolean {
+function verifySecret(
+  payload: Record<string, unknown>,
+  source: TvSource,
+): boolean {
   const payloadSecret =
     (payload.secret as string) || (payload.key as string) || '';
   const hash = crypto.createHash('sha256').update(payloadSecret).digest('hex');
@@ -102,21 +102,20 @@ function writeSignalToInbox(
   sourceId: string,
   payload: Record<string, unknown>,
 ): void {
-  const inboxDir = path.join(
-    GROUPS_DIR,
-    groupFolder,
-    'auto-mode',
-    'tv-inbox',
-  );
+  const inboxDir = path.join(GROUPS_DIR, groupFolder, 'auto-mode', 'tv-inbox');
   fs.mkdirSync(inboxDir, { recursive: true });
   fs.writeFileSync(
     path.join(inboxDir, `${signalId}.json`),
-    JSON.stringify({
-      signal_id: signalId,
-      source_id: sourceId,
-      received_at: new Date().toISOString(),
-      raw_payload: payload,
-    }, null, 2),
+    JSON.stringify(
+      {
+        signal_id: signalId,
+        source_id: sourceId,
+        received_at: new Date().toISOString(),
+        raw_payload: payload,
+      },
+      null,
+      2,
+    ),
   );
 }
 
@@ -133,7 +132,12 @@ function summarizeSignal(payload: Record<string, unknown>): string {
   const action =
     (payload.action as string) ||
     (payload.side as string) ||
-    ((payload.strategy as Record<string, unknown>)?.order as Record<string, unknown>)?.action as string ||
+    ((
+      (payload.strategy as Record<string, unknown>)?.order as Record<
+        string,
+        unknown
+      >
+    )?.action as string) ||
     '?';
   const price =
     (payload.close as number) ||
@@ -196,7 +200,10 @@ function handleWebhook(
   } else {
     // No registered source — verify against global secret as fallback
     if (!verifyGlobalSecret(payload)) {
-      logger.warn({ sourceId }, 'TV webhook: unknown source, bad global secret');
+      logger.warn(
+        { sourceId },
+        'TV webhook: unknown source, bad global secret',
+      );
       respond(401, { error: 'Unknown source_id or invalid secret' });
       return;
     }
@@ -211,7 +218,10 @@ function handleWebhook(
     writeSignalToInbox(main.folder, signalId, sourceId, payload);
     logger.info({ signalId, sourceId }, 'TV signal written to inbox');
   } catch (err) {
-    logger.error({ err, signalId, sourceId }, 'Failed to write TV signal to inbox');
+    logger.error(
+      { err, signalId, sourceId },
+      'Failed to write TV signal to inbox',
+    );
     return;
   }
 
