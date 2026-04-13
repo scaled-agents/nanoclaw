@@ -43,6 +43,7 @@ import {
   setSession,
   storeChatMetadata,
   storeMessage,
+  storeMessageDirect,
 } from './db.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
@@ -674,14 +675,21 @@ async function main(): Promise<void> {
     registeredGroups: () => registeredGroups,
   });
   startTvInboxPoller({
-    sendMessage: async (jid, rawText) => {
-      const channel = findChannel(channels, jid);
-      if (!channel) {
-        logger.warn({ jid }, 'TV inbox poller: no channel owns JID');
-        return;
-      }
-      const text = formatOutbound(rawText);
-      if (text) await channel.sendMessage(jid, text);
+    injectSystemMessage: (jid, text) => {
+      // Store directly in the DB as a non-bot system message so it gets
+      // picked up by getMessagesSince() in the next poll cycle.
+      // (Sending via WhatsApp marks it is_bot_message=true → filtered out.)
+      const id = `tv-poller-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      storeMessageDirect({
+        id,
+        chat_jid: jid,
+        sender: 'system',
+        sender_name: 'TV Signal System',
+        content: text,
+        timestamp: new Date().toISOString(),
+        is_from_me: false,
+        is_bot_message: false,
+      });
     },
     registeredGroups: () => registeredGroups,
   });

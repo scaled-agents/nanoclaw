@@ -3,8 +3,8 @@
  *
  * Polls the Supabase tv-inbox-poll edge function for pending TradingView
  * signals that were received by the tv-webhook edge function. When found,
- * writes them to the agent's local tv-inbox directory and notifies the
- * main group.
+ * writes them to the agent's local tv-inbox directory and injects a system
+ * message into the main group's message queue so the agent processes it.
  *
  * This replaces the need for a tunnel or public IP — TradingView POSTs to
  * Supabase (public HTTPS), and NanoClaw polls from behind NAT (outbound only).
@@ -15,10 +15,11 @@
  *   CONSOLE_SYNC_KEY           — operator sync key for edge function auth
  */
 
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-import { ASSISTANT_NAME, GROUPS_DIR } from './config.js';
+import { GROUPS_DIR } from './config.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
@@ -32,7 +33,13 @@ const ENV_KEYS = [
 ];
 
 export interface TvInboxPollerDeps {
-  sendMessage: (jid: string, text: string) => Promise<void>;
+  /**
+   * Inject a message directly into the DB as a non-bot system message.
+   * Unlike sendMessage (which goes via WhatsApp and gets flagged is_bot_message=true
+   * then filtered out by getMessagesSince), this stores the message so the agent
+   * actually sees it in the next poll cycle.
+   */
+  injectSystemMessage: (jid: string, text: string) => void;
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
@@ -152,19 +159,15 @@ async function pollInbox(
       writeSignalToLocalInbox(main.folder, signal);
       ackIds.push(signal.id);
 
-      // Notify main group — prefix with @AssistantName to trigger the agent
+      // Inject system message into DB (NOT via WhatsApp sendMessage which
+      // marks it is_bot_message=true and gets filtered by getMessagesSince).
       const summary = summarizeSignal(signal.raw_payload);
-      const text = `@${ASSISTANT_NAME} [TV Signal] ${summary} from "${signal.source_id}" (${signal.signal_id})\nInbound signal waiting in auto-mode/tv-inbox/${signal.signal_id}.json — process it now using the tv-signals skill (read the inbox file, normalize, run signal rules, execute if validated).`;
-      deps.sendMessage(main.jid, text).catch((err) => {
-        logger.error(
-          { err, signalId: signal.signal_id },
-          '[tv-inbox-poller] Failed to notify main group',
-        );
-      });
+      const text = `[TV Signal] ${summary} from "${signal.source_id}" (${signal.signal_id})\nInbound signal waiting in auto-mode/tv-inbox/${signal.signal_id}.json — process it now using the tv-signals skill (read the inbox file, normalize, run signal rules, execute if validated).`;
+      deps.injectSystemMessage(main.jid, text);
 
       logger.info(
         { signalId: signal.signal_id, sourceId: signal.source_id },
-        '[tv-inbox-poller] Signal written to local inbox',
+        '[tv-inbox-poller] Signal written to local inbox + system message injected',
       );
     }
 
