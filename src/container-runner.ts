@@ -322,6 +322,10 @@ function buildContainerArgs(
     'TV_WEBHOOK_SECRET',
     'TV_MANUAL_BOT_URL',
     'TV_WEBHOOK_PORT',
+    'CHART_IMG_API_KEY',
+    'TRADINGVIEW_SESSION_ID',
+    'TRADINGVIEW_SESSION_ID_SIGN',
+    'FINNHUB_API_KEY',
   ];
   const envValues = readEnvFile(allEnvKeys);
 
@@ -378,6 +382,16 @@ function buildContainerArgs(
     const val = envVal(tvKey);
     if (val) args.push('-e', `${tvKey}=${val}`);
   }
+
+  // Chart Vision (chart-img.com API)
+  for (const key of ['CHART_IMG_API_KEY', 'TRADINGVIEW_SESSION_ID', 'TRADINGVIEW_SESSION_ID_SIGN']) {
+    const val = envVal(key);
+    if (val) args.push('-e', `${key}=${val}`);
+  }
+
+  // Technical Analysis (Finnhub premium API)
+  const finnhubKey = envVal('FINNHUB_API_KEY');
+  if (finnhubKey) args.push('-e', `FINNHUB_API_KEY=${finnhubKey}`);
 
   // Raise the per-response output token ceiling above the SDK default (32K).
   // Long session-resume catch-ups (accumulated monitor ticks, research cycles)
