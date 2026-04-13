@@ -341,9 +341,9 @@ function waitForIpcMessage(): Promise<string | null> {
  */
 const CAPABILITY_SERVERS: Record<CapabilityProfile, Set<string>> = {
   core:     new Set(['nanoclaw', 'orderflow']),
-  research: new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna']),
-  trading:  new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner']),
-  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'x', 'luxalgo']),
+  research: new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'youtube']),
+  trading:  new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'youtube']),
+  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'x', 'luxalgo', 'youtube']),
 };
 
 /**
@@ -460,6 +460,15 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
         NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
         NANOCLAW_IS_MAIN: '1',
       },
+    };
+  }
+
+  // youtube: transcript fetching — no auth, no special deps
+  if (enabled.has('youtube')) {
+    servers.youtube = {
+      command: 'node',
+      args: [path.join(path.dirname(mcpServerPath), 'youtube-mcp-stdio.js')],
+      env: {},
     };
   }
 
