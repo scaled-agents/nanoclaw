@@ -90,11 +90,7 @@ function writeSignalToLocalInbox(
   }
   fs.writeFileSync(
     path.join(inboxDir, `${signal.signal_id}.json`),
-    JSON.stringify(
-      inboxData,
-      null,
-      2,
-    ),
+    JSON.stringify(inboxData, null, 2),
   );
 }
 
