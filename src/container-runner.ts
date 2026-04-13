@@ -384,7 +384,11 @@ function buildContainerArgs(
   }
 
   // Chart Vision (chart-img.com API)
-  for (const key of ['CHART_IMG_API_KEY', 'TRADINGVIEW_SESSION_ID', 'TRADINGVIEW_SESSION_ID_SIGN']) {
+  for (const key of [
+    'CHART_IMG_API_KEY',
+    'TRADINGVIEW_SESSION_ID',
+    'TRADINGVIEW_SESSION_ID_SIGN',
+  ]) {
     const val = envVal(key);
     if (val) args.push('-e', `${key}=${val}`);
   }
