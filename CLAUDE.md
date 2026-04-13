@@ -36,8 +36,6 @@ Single Node.js process with skill-based channel system. Channels (WhatsApp, Tele
 
 ## Development
 
-Run commands directly—don't tell the user to run them.
-
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
@@ -56,6 +54,29 @@ systemctl --user start nanoclaw
 systemctl --user stop nanoclaw
 systemctl --user restart nanoclaw
 ```
+
+## Coding Discipline
+
+**Run commands directly** — don't tell the user to run them.
+
+**Think first.** Before implementing, state assumptions explicitly. If multiple approaches exist, present them — don't pick silently. If something is unclear, ask.
+
+**Simplicity first.** Minimum code that solves the problem. No features beyond what was asked. No abstractions for single-use code. No error handling for impossible scenarios. If 200 lines could be 50, rewrite.
+
+**Surgical changes.** Touch only what you must. Don't "improve" adjacent code, comments, or formatting. Match existing style. Remove imports/functions YOUR changes made unused — don't clean up pre-existing dead code unless asked. Every changed line should trace directly to the request.
+
+**Verify as you go.** Transform tasks into verifiable goals:
+- "Fix the bug" → reproduce it first, then fix, then confirm
+- "Add feature X" → implement, build (`npm run build`), test behavior
+- Multi-step tasks: state a brief plan with verification at each step
+
+**NanoClaw-specific:**
+- Container changes require `./container/build.sh` + restart to take effect
+- Host-side changes require `npm run build` + restart
+- Skill additions follow the IPC pattern (container MCP → host handler) unless the skill needs no host resources (like YouTube transcripts → direct in-container)
+- Match the existing MCP server pattern in `container/agent-runner/src/` — standalone stdio servers registered in `buildMcpServers()`
+- Match the existing IPC pattern in `src/ipc.ts` — handler chain in the `default` case
+- Match the existing capability profile levels: core → research → trading → full
 
 ## Troubleshooting
 
