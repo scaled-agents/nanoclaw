@@ -342,7 +342,7 @@ const CAPABILITY_SERVERS: Record<CapabilityProfile, Set<string>> = {
   core:     new Set(['nanoclaw', 'orderflow']),
   research: new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'youtube']),
   trading:  new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'youtube']),
-  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'x', 'luxalgo', 'youtube']),
+  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'x', 'luxalgo', 'youtube', 'debug']),
 };
 
 /**
@@ -455,6 +455,18 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
     servers.luxalgo = {
       command: 'node',
       args: [path.join(path.dirname(mcpServerPath), 'luxalgo-mcp-stdio.js')],
+      env: {
+        NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
+        NANOCLAW_IS_MAIN: '1',
+      },
+    };
+  }
+
+  // browser-debug: diagnostic tools for X + LuxAlgo — main group only
+  if (enabled.has('debug') && containerInput.isMain) {
+    servers['browser-debug'] = {
+      command: 'node',
+      args: [path.join(path.dirname(mcpServerPath), 'debug-mcp-stdio.js')],
       env: {
         NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
         NANOCLAW_IS_MAIN: '1',

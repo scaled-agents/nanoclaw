@@ -9,6 +9,7 @@ import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
+import { handleDebugIpc } from './debug-ipc.js';
 import { handleLuxAlgoIpc } from './luxalgo-ipc.js';
 import { handleXIpc } from './x-ipc.js';
 
@@ -460,7 +461,14 @@ export async function processTaskIpc(
         isMain,
         DATA_DIR,
       );
-      if (!handledLuxAlgo) {
+      if (handledLuxAlgo) break;
+      const handledDebug = await handleDebugIpc(
+        data,
+        sourceGroup,
+        isMain,
+        DATA_DIR,
+      );
+      if (!handledDebug) {
         logger.warn({ type: data.type }, 'Unknown IPC task type');
       }
       break;
