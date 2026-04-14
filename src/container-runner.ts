@@ -36,7 +36,6 @@ const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
 
 export interface ContainerInput {
   prompt: string;
-  sessionId?: string;
   groupFolder: string;
   chatJid: string;
   isMain: boolean;
@@ -738,7 +737,6 @@ export async function runContainerAgent(
         logLines.push(
           `=== Input Summary ===`,
           `Prompt length: ${input.prompt.length} chars`,
-          `Session ID: ${input.sessionId || 'new'}`,
           ``,
           `=== Mounts ===`,
           mounts

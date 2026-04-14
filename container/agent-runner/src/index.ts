@@ -23,7 +23,6 @@ type CapabilityProfile = 'core' | 'research' | 'trading' | 'full';
 
 interface ContainerInput {
   prompt: string;
-  sessionId?: string;
   groupFolder: string;
   chatJid: string;
   isMain: boolean;
@@ -676,7 +675,7 @@ async function main(): Promise<void> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const mcpServerPath = path.join(__dirname, 'ipc-mcp-stdio.js');
 
-  let sessionId = containerInput.sessionId;
+  let sessionId: string | undefined;
   fs.mkdirSync(IPC_INPUT_DIR, { recursive: true });
 
   // Clean up stale _close sentinel from previous container runs
