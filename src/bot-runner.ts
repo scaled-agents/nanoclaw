@@ -615,6 +615,7 @@ async function startBotContainer(req: BotRequest): Promise<BotInstance> {
   }
   startingDeployments.add(deploymentId);
 
+  try {
   const containerName = `${CONTAINER_PREFIX}${deploymentId}`;
   const strategy = req.strategy_name!;
   const pair = req.pair!;
@@ -736,7 +737,6 @@ async function startBotContainer(req: BotRequest): Promise<BotInstance> {
     // Release the pre-reserved port on failure
     portMap.delete(port);
     savePortMap();
-    startingDeployments.delete(deploymentId);
     throw lastStartError;
   }
 
@@ -744,10 +744,9 @@ async function startBotContainer(req: BotRequest): Promise<BotInstance> {
   try {
     await waitForBotReady(port, password);
   } catch (err) {
-    // Release port and mutex on readiness failure
+    // Release port on readiness failure
     portMap.delete(port);
     savePortMap();
-    startingDeployments.delete(deploymentId);
     throw err;
   }
 
@@ -768,9 +767,11 @@ async function startBotContainer(req: BotRequest): Promise<BotInstance> {
   activeBots.set(deploymentId, bot);
   // Port already reserved by allocatePort() — no need to set again
   writeBotStatus(bot);
-  startingDeployments.delete(deploymentId);
 
   return bot;
+  } finally {
+    startingDeployments.delete(deploymentId);
+  }
 }
 
 async function stopBotContainer(deploymentId: string): Promise<void> {
