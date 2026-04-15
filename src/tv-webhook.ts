@@ -49,7 +49,7 @@ interface TvSource {
 }
 
 export interface TvWebhookDeps {
-  sendMessage: (jid: string, text: string) => Promise<void>;
+  injectSystemMessage: (jid: string, text: string) => void;
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
@@ -225,12 +225,16 @@ function handleWebhook(
     return;
   }
 
-  // Notify main group (fire-and-forget)
+  // Notify main group via DB-direct injection so the agent sees it.
+  // sendMessage goes via WhatsApp which marks it is_bot_message=true and
+  // causes getMessagesSince to filter it out — the agent never wakes up.
   const summary = summarizeSignal(payload);
-  const text = `[TV Signal] ${summary} from "${sourceId}" (${signalId})\nProcess via tv-signals skill.`;
-  deps.sendMessage(main.jid, text).catch((err) => {
-    logger.error({ err, signalId }, 'Failed to notify main group of TV signal');
-  });
+  const text = `[TV Signal] ${summary} from "${sourceId}" (${signalId})\nInbound signal waiting in auto-mode/tv-inbox/${signalId}.json — process it now using the tv-signals skill (read the inbox file, normalize, run signal rules, execute if validated).`;
+  try {
+    deps.injectSystemMessage(main.jid, text);
+  } catch (err) {
+    logger.error({ err, signalId }, 'Failed to inject system message for TV signal');
+  }
 }
 
 // ─── Server ─────────────────────────────────────────────────────────

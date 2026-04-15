@@ -642,14 +642,19 @@ async function main(): Promise<void> {
   });
   startConsoleSync(getDb(), DATA_DIR);
   startTvWebhook({
-    sendMessage: async (jid, rawText) => {
-      const channel = findChannel(channels, jid);
-      if (!channel) {
-        logger.warn({ jid }, 'TV webhook: no channel owns JID');
-        return;
-      }
-      const text = formatOutbound(rawText);
-      if (text) await channel.sendMessage(jid, text);
+    injectSystemMessage: (jid, text) => {
+      const now = new Date(Date.now() + 1);
+      const id = `tv-webhook-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
+      storeMessageDirect({
+        id,
+        chat_jid: jid,
+        sender: 'system',
+        sender_name: 'TV Signal System',
+        content: text,
+        timestamp: now.toISOString(),
+        is_from_me: false,
+        is_bot_message: false,
+      });
     },
     registeredGroups: () => registeredGroups,
   });
@@ -658,14 +663,19 @@ async function main(): Promise<void> {
       // Store directly in the DB as a non-bot system message so it gets
       // picked up by getMessagesSince() in the next poll cycle.
       // (Sending via WhatsApp marks it is_bot_message=true → filtered out.)
-      const id = `tv-poller-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      //
+      // Use Date.now() + 1ms to guarantee the injected timestamp is strictly
+      // greater than lastTimestamp, avoiding the getNewMessages "timestamp > ?"
+      // race where a same-millisecond message is silently skipped.
+      const now = new Date(Date.now() + 1);
+      const id = `tv-poller-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
       storeMessageDirect({
         id,
         chat_jid: jid,
         sender: 'system',
         sender_name: 'TV Signal System',
         content: text,
-        timestamp: new Date().toISOString(),
+        timestamp: now.toISOString(),
         is_from_me: false,
         is_bot_message: false,
       });

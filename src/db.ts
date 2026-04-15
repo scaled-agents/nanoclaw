@@ -293,6 +293,15 @@ export function storeMessageDirect(msg: {
   is_from_me: boolean;
   is_bot_message?: boolean;
 }): void {
+  // Ensure a chats row exists for this JID before inserting the message.
+  // The messages table has a FK on chat_jid → chats(jid), and better-sqlite3
+  // enables FK enforcement by default. System-injected messages (e.g. TV signal
+  // notifications) arrive before any channel message creates the chats row,
+  // causing a silent FOREIGN KEY constraint failure that drops the message.
+  db.prepare(
+    `INSERT OR IGNORE INTO chats (jid, name, last_message_time) VALUES (?, ?, ?)`,
+  ).run(msg.chat_jid, msg.chat_jid, msg.timestamp);
+
   db.prepare(
     `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
