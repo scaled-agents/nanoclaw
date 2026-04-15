@@ -217,7 +217,7 @@ server.tool(
       timestamp: new Date().toISOString(),
     });
 
-    const result = await waitForResult(requestId, 90000);
+    const result = await waitForResult(requestId, 150000);
     return {
       content: [{ type: 'text' as const, text: result.success ? JSON.stringify(result.data ?? result.message) : result.message }],
       isError: !result.success,
@@ -247,7 +247,7 @@ server.tool(
       timestamp: new Date().toISOString(),
     });
 
-    const result = await waitForResult(requestId, 90000);
+    const result = await waitForResult(requestId, 150000);
     return {
       content: [{ type: 'text' as const, text: result.success ? JSON.stringify(result.data ?? result.message) : result.message }],
       isError: !result.success,
