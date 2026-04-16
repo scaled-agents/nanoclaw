@@ -445,9 +445,18 @@ to the trade sizing.
 
 If all rules pass:
 
+**Pre-flight: verify tv-manual bot is reachable.**
+```
+bot_status = freqtrade_fetch_bot_status(bot_id="tv-manual")
+If bot_status fails or returns an error:
+  Log: "tv-manual bot unreachable — cannot execute signal {signal_id}"
+  Record signal as validated_but_not_executed, reason: "bot_unavailable"
+  STOP (do not attempt place_trade)
+```
+
 **Compute final sizing:**
 ```
-base_stake = source.stake_pct (default 5.0)
+base_stake_pct = source.stake_pct (default 5.0, this is a PERCENTAGE)
 sizing_modifier = 1.0
 
 If chart_vision ran and passed:
@@ -459,9 +468,14 @@ If technical_analysis ran and passed:
 If regime_check warned (low conviction or CHAOS < threshold):
   sizing_modifier *= 0.7
 
-final_stake = clamp(base_stake * sizing_modifier,
-                    config.sizing.min_stake_pct,
-                    config.sizing.max_stake_pct)
+final_stake_pct = clamp(base_stake_pct * sizing_modifier,
+                        config.sizing.min_stake_pct,
+                        config.sizing.max_stake_pct)
+
+# Convert percentage to absolute stake currency (USDT)
+wallet = freqtrade_fetch_balance(bot_id="tv-manual")
+wallet_total = wallet.total (available balance in stake currency)
+stake_amount = wallet_total * final_stake_pct / 100
 ```
 
 **Entry signal:**
@@ -470,7 +484,8 @@ freqtrade_place_trade(
   bot_id: "tv-manual",
   pair: normalized.pair,
   side: normalized.direction,
-  stake_amount: final_stake,
+  stake_amount: stake_amount,
+  confirm: true,
   price: null,                           # market order
   stoploss: normalized.stop_loss || null,
   takeprofit: normalized.take_profit || null,

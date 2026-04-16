@@ -375,10 +375,17 @@ function buildContainerArgs(
   if (ofUrl) args.push('-e', `ORDERFLOW_API_URL=${ofUrl}`);
 
   // TV Signals (TradingView webhook processing)
-  const tvRequiredKeys = ['TV_MANUAL_BOT_URL', 'TV_MANUAL_BOT_USERNAME', 'TV_MANUAL_BOT_PASSWORD'];
+  const tvRequiredKeys = [
+    'TV_MANUAL_BOT_URL',
+    'TV_MANUAL_BOT_USERNAME',
+    'TV_MANUAL_BOT_PASSWORD',
+  ];
   const tvMissing = tvRequiredKeys.filter((k) => !envVal(k));
   if (tvMissing.length > 0) {
-    logger.warn({ missing: tvMissing }, 'TV signal env vars missing — tv-manual bot trades will fail');
+    logger.warn(
+      { missing: tvMissing },
+      'TV signal env vars missing — tv-manual bot trades will fail',
+    );
   }
   for (const tvKey of [
     'TV_WEBHOOK_SECRET',
