@@ -298,6 +298,56 @@ From `auto-mode/campaigns.json`, find campaigns where:
 
 ---
 
+## Step 4b — Tier 4b: Kata Runner Health (~5s)
+
+Checks the container-native kata optimization pipeline. These checks use
+the `kata_list` MCP tool and direct file reads of kata-runner state.
+
+### Check 21: Kata Runner Reachable
+
+Call `kata_list()`.
+
+| Result | Verdict |
+|--------|---------|
+| Returns `{ races: [...], count: N }` | **pass** — detail: "{N} races tracked" |
+| Tool not found | **warn** — fix: "kata_list MCP tool not available. Kata runner MCP server may not be registered. Check agent-runner kata server wiring." |
+| Error / timeout | **warn** — fix: "Kata runner IPC directory unreachable. Is the kata-runner enabled on the host?" |
+
+### Check 22: Stuck Races
+
+From the `kata_list()` result, find races where:
+- `status == "running"`
+- `experiments == 0`
+- `started_at` is more than 10 minutes ago
+
+| Result | Verdict |
+|--------|---------|
+| No stuck races | **pass** |
+| 1+ stuck races | **fail** — detail: list race_ids — fix: "Kata races stuck at 0 experiments: {race_ids}. Container likely crashed on startup. Check `docker logs nanoclaw-kata-{race_id}` on the host. Common causes: missing --entrypoint override, bad volume mounts, Python import errors." |
+
+### Check 23: Failed Races
+
+From the `kata_list()` result, find races where:
+- `status == "failed"`
+
+| Result | Verdict |
+|--------|---------|
+| No failed races | **pass** |
+| 1+ failed | **warn** — detail: list race_ids with error messages — fix: "Failed kata races: {race_ids}. Check error field for details. Use `kata_stop(race_id, confirm=true)` to clean up." |
+
+### Check 24: Long-Running Races
+
+From the `kata_list()` result, find races where:
+- `status == "running"`
+- `started_at` is more than 12 hours ago
+
+| Result | Verdict |
+|--------|---------|
+| No long-running races | **pass** |
+| 1+ long-running | **warn** — detail: list race_ids with experiment counts — fix: "Kata races running >12h: {race_ids}. These may be stuck or processing very slowly. Check container logs." |
+
+---
+
 ## Step 5 — Tier 5: Browser Automations (~5s)
 
 **Skip this entire tier if `tier1_all_fail == true`** — if infrastructure is
@@ -306,7 +356,7 @@ down, browser config checks are irrelevant.
 These checks validate environment configuration only. They do NOT launch
 browsers or navigate pages.
 
-### Check 21: CHROME_PATH
+### Check 25: CHROME_PATH
 
 ```bash
 CHROME=$(printenv CHROME_PATH 2>/dev/null)
@@ -325,7 +375,7 @@ fi
 | Not set | **warn** — fix: "CHROME_PATH env var not set. LuxAlgo and X integrations require Chrome. Set to your Chrome executable path." |
 | Set but file not found | **fail** — fix: "CHROME_PATH points to {path} but file does not exist. Update to correct Chrome installation path." |
 
-### Check 22: LuxAlgo Auth State
+### Check 26: LuxAlgo Auth State
 
 ```bash
 AUTH_FILE="/workspace/data/luxalgo-auth.json"
@@ -343,7 +393,7 @@ fi
 | Exists but ≥ 7 days old | **warn** — fix: "LuxAlgo auth is {age} days old. Re-run LuxAlgo setup to refresh session." |
 | Missing | **warn** — fix: "LuxAlgo auth file missing. Run LuxAlgo setup to authenticate." |
 
-### Check 23: X Auth State
+### Check 27: X Auth State
 
 Same pattern as Check 22 but for `data/x-auth.json`.
 
@@ -353,7 +403,7 @@ Same pattern as Check 22 but for `data/x-auth.json`.
 | Exists but ≥ 7 days old | **warn** — fix: "X auth is {age} days old. Run /x-integration setup to refresh session." |
 | Missing | **warn** — fix: "X auth file missing. Run /x-integration setup to authenticate." |
 
-### Check 24: TradingView Session
+### Check 28: TradingView Session
 
 ```bash
 TV_SESSION=$(printenv TRADINGVIEW_SESSION_ID 2>/dev/null)
@@ -397,7 +447,7 @@ Write the report to `/workspace/group/reports/health-check-latest.json`:
   "timestamp": "<ISO>",
   "duration_ms": <elapsed>,
   "summary": {
-    "total": 24,
+    "total": 28,
     "pass": <count>,
     "warn": <count>,
     "fail": <count>,
@@ -414,6 +464,7 @@ Write the report to `/workspace/group/reports/health-check-latest.json`:
     "connectivity": { "status": "...", "checks": [...] },
     "pipeline_state": { "status": "...", "checks": [...] },
     "bot_health": { "status": "...", "checks": [...] },
+    "kata_runner": { "status": "...", "checks": [...] },
     "automations": { "status": "...", "checks": [...] }
   },
   "fixes": [
@@ -435,6 +486,7 @@ Status: <STATUS> (<pass> pass / <warn> warn / <fail> fail)
   Tier 2: Connectivity ................ <STATUS>
   Tier 3: Pipeline State .............. <STATUS>
   Tier 4: Bot Health .................. <STATUS>
+  Tier 4b: Kata Runner ................ <STATUS>
   Tier 5: Automations ................. <STATUS>
 ```
 

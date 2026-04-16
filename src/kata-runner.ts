@@ -353,6 +353,23 @@ async function startRaceContainer(req: KataRequest): Promise<RaceInstance> {
     throw new Error(`No strategy file at ${agentPath}`);
   }
 
+  // Pre-launch validation: catch environment problems before container start
+  if (!fs.existsSync(FT_CONFIG) || !fs.statSync(FT_CONFIG).isFile()) {
+    const isDir =
+      fs.existsSync(FT_CONFIG) && fs.statSync(FT_CONFIG).isDirectory();
+    throw new Error(
+      `Kata pre-launch failed: FT_CONFIG ${isDir ? 'is a directory' : 'does not exist'}: ${FT_CONFIG}. ` +
+        (isDir
+          ? 'Delete it and create a proper FreqTrade config JSON file.'
+          : ''),
+    );
+  }
+  if (!fs.existsSync(dataDir)) {
+    throw new Error(
+      `Kata pre-launch failed: data directory does not exist: ${dataDir}`,
+    );
+  }
+
   // Clean up existing container
   removeContainer(containerName);
 
