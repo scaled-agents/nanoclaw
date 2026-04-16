@@ -1363,10 +1363,14 @@ function recoverExistingBots(): void {
           // file after a Docker Desktop restart).
           let actualPort = status.api_port;
           try {
-            const portOutput = execFileSync('docker', ['port', containerName, '8080'], {
-              encoding: 'utf-8',
-              timeout: 5000,
-            }).trim();
+            const portOutput = execFileSync(
+              'docker',
+              ['port', containerName, '8080'],
+              {
+                encoding: 'utf-8',
+                timeout: 5000,
+              },
+            ).trim();
             // Output like "8080/tcp -> 0.0.0.0:8085\n8080/tcp -> [::]:8085"
             const match = portOutput.match(/:(\d+)/);
             if (match) {
