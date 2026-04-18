@@ -267,7 +267,10 @@ function resolveKnowledgeDir(groupFolder?: string): string {
  */
 function ensureConfig(): void {
   if (fs.existsSync(FT_CONFIG) && fs.statSync(FT_CONFIG).isDirectory()) {
-    logger.warn({ path: FT_CONFIG }, 'FT_CONFIG is a directory — removing and regenerating');
+    logger.warn(
+      { path: FT_CONFIG },
+      'FT_CONFIG is a directory — removing and regenerating',
+    );
     fs.rmSync(FT_CONFIG, { recursive: true });
   }
 
@@ -286,8 +289,16 @@ function ensureConfig(): void {
           dry_run: true,
           dry_run_wallet: 1000,
           exchange: { name: 'binance', key: '', secret: '' },
-          entry_pricing: { price_side: 'other', use_order_book: true, order_book_top: 1 },
-          exit_pricing: { price_side: 'other', use_order_book: true, order_book_top: 1 },
+          entry_pricing: {
+            price_side: 'other',
+            use_order_book: true,
+            order_book_top: 1,
+          },
+          exit_pricing: {
+            price_side: 'other',
+            use_order_book: true,
+            order_book_top: 1,
+          },
           pairlists: [{ method: 'StaticPairList' }],
         },
         null,
@@ -315,7 +326,10 @@ function normalizeDataPaths(dataDir: string): void {
     const dst = path.join(rightDir, file);
     if (!fs.existsSync(dst)) {
       fs.copyFileSync(src, dst);
-      logger.info({ file }, 'Copied OHLCV file from futures/ to binance/futures/');
+      logger.info(
+        { file },
+        'Copied OHLCV file from futures/ to binance/futures/',
+      );
     }
   }
 }
@@ -333,7 +347,10 @@ function ensureData(dataDir: string, pair: string, timeframe: string): void {
   // Check if data exists and is fresh (< 7 days old)
   let needsDownload = true;
   for (const ext of ['feather', 'json']) {
-    const fpath = path.join(rightDir, `${pairSlug}-${timeframe}-futures.${ext}`);
+    const fpath = path.join(
+      rightDir,
+      `${pairSlug}-${timeframe}-futures.${ext}`,
+    );
     if (fs.existsSync(fpath)) {
       const ageDays = (Date.now() - fs.statSync(fpath).mtimeMs) / 86_400_000;
       if (ageDays < 7) {
@@ -355,7 +372,10 @@ function ensureData(dataDir: string, pair: string, timeframe: string): void {
   const fmt = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '');
   const timerange = `${fmt(start)}-${fmt(end)}`;
 
-  logger.info({ pair, timeframe, timerange }, 'Downloading OHLCV data via container');
+  logger.info(
+    { pair, timeframe, timerange },
+    'Downloading OHLCV data via container',
+  );
 
   try {
     dockerExec(
