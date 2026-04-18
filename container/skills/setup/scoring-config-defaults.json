@@ -245,7 +245,15 @@
     "lookback_bars_inference": 100,
     "min_bars_for_hmm": 500,
     "bocpd_threshold": 0.50,
-    "shadow_log_file": "regime-shadow-log.jsonl"
+    "shadow_log_file": "regime-shadow-log.jsonl",
+    "promotion_criteria": {
+      "_comment": "Thresholds for promoting from shadow mode to HMM-authoritative. All 5 must be met before flipping shadow_mode to false. Displayed on Research > Regime Intel dashboard.",
+      "agreement_threshold": 0.70,
+      "min_shadow_days": 7,
+      "min_shadow_entries": 100,
+      "max_disagreement_streak_days": 3,
+      "bocpd_validation_required": true
+    }
   },
 
   "TV_SIGNALS": {
