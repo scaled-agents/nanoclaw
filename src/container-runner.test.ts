@@ -324,5 +324,4 @@ describe('container-runner sync behavior', () => {
     const removedStale = rmCalls.some((p) => p.includes('old-removed-skill'));
     expect(removedStale).toBe(true);
   });
-
 });

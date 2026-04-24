@@ -119,7 +119,7 @@ Historical backtest performance for the best strategy at this (archetype, pair, 
 | 1 | WF Sharpe > -1.0 |
 | 0 | No data OR WF Sharpe <= -1.0 |
 
-**Data source:** FreqHub registry (`sdna leaderboard`), triage-matrix results, or aphexDATA historical backtests.
+**Data source:** FreqHub registry (`freqhub leaderboard`), triage-matrix results, or aphexDATA historical backtests.
 
 ### Composite Score
 
@@ -149,7 +149,7 @@ composite = (regime_fit × 0.4) + (execution_fit × 0.25) + (net_edge × 0.35)
 
 To classify an existing strategy:
 1. Check its `strategy_tags` against the archetype tag lists above
-2. Use `sdna search --tag <tag>` to find matching genomes in the registry
+2. Use `freqhub search --tag <tag>` to find matching strategies in the registry
 3. Or grep the strategy source for archetype indicator signatures
 
 A strategy can match multiple archetypes. Use the one with the highest `net_edge` score for that cell.
