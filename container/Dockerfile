@@ -55,6 +55,14 @@ RUN pip install --break-system-packages "freqtrade[hyperopt]" freqtrade-client "
 COPY kata-mcp/ /app/kata-mcp/
 RUN pip install --break-system-packages /app/kata-mcp
 
+# Install trade-md CLI (TRADE.md lint, compile, explain, diff)
+COPY trade-md/ /app/trade-md/
+RUN pip install --break-system-packages /app/trade-md
+
+# Install freqhub CLI (strategy registry: build, search, get, leaderboard)
+COPY freqhub/ /app/freqhub/
+RUN cd /app/freqhub && npm install --omit=dev && npm link --force
+
 # Set default freqtrade binary path
 ENV FREQTRADE_PATH=/usr/local/bin/freqtrade
 

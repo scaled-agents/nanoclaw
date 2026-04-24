@@ -45,8 +45,10 @@ __pycache__/
 
 agents-sdk-docs
 
-# Private MCP servers (cloned separately)
+# Private packages (cloned separately)
 container/freqtrade-mcp/
+container/trade-md/
+container/freqhub/
 
 # Trading skills (synced from freqtrade-agents via sync.sh)
 container/skills/scout/
