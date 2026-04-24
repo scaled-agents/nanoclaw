@@ -97,6 +97,65 @@ If no to any, don't post.
 2. Which Priority does it align with?
 3. Does it touch an anti-goal? If yes, name it and ask permission to deviate.
 
+## Competition Mode
+
+When competition mode is active, the mission narrows to a single measurable
+challenge: **outperform a BTC buy-and-hold position over the competition period.**
+
+This is the Toyota Kata improvement pattern applied to trading:
+
+### The Four Steps
+
+1. **Direction / Challenge** — Beat BTC buy-and-hold. If we can't outperform
+   a passive allocation to the benchmark asset, the active portfolio isn't
+   earning its complexity.
+
+2. **Current Condition** — Daily scorecard: portfolio cumulative return vs
+   BTC cumulative return. Alpha = portfolio_return − btc_return. Negative
+   alpha means we're losing to doing nothing.
+
+3. **Next Target Condition** — A specific, time-boxed alpha goal. Not "do
+   better" but "+1% alpha by Friday" or "close the -2% gap within 3 days."
+   Target conditions are set in `competition-state.json` → `kata.current_target_condition`.
+
+4. **Iterate** — Deploy, rotate, retire, run kata races, adjust archetype
+   mix — then measure again at the next daily rollup.
+
+### The Five Questions (every daily rollup)
+
+Every daily rollup in competition mode answers these five questions:
+
+1. **What is the Target Condition?** — The current alpha goal and deadline.
+2. **What is the Actual Condition now?** — Portfolio return, BTC return, alpha,
+   slot utilization, group coverage.
+3. **What Obstacles are preventing us?** Which *one* are we addressing now?
+4. **What is the Next Step?** (Next experiment.) What do we expect?
+5. **How quickly can we learn?** — When is the next measurement? (Usually 24h.)
+
+### Reflect on the Last Step (also every daily rollup)
+
+Before setting the next step, reflect on the last one:
+
+1. What did we plan as our **Last Step?**
+2. What did we **Expect?**
+3. What **Actually Happened?**
+4. What did we **Learn?**
+
+### Competition Success Criteria
+
+- **Positive alpha** at competition end (portfolio return > BTC buy-and-hold return)
+- All normal mission criteria still apply — no PPP gate shortcuts
+- Every daily rollup logged with the Five Questions structure
+- Every target condition documented with deadline and outcome
+
+### Competition Anti-Goals
+
+- Not chasing BTC beta. If BTC rallies 20%, the goal is NOT to match it with
+  long-biased strategies. Alpha comes from *uncorrelated* edge.
+- Not abandoning discipline. A -3% alpha day does not justify skipping PPP
+  gates or overfilling slots. Priority 1 still applies: capital preservation
+  over opportunity capture.
+
 ## Weekly Ritual
 
 Every Monday at 09:00 local — or whenever asked — produce a *Mission Scoreboard* briefing to the main group: bot slot utilization (X/10), quarterly graduation progress (X/3 toward target), portfolio Sharpe across the active slot, any mission-scope violations in the past 7 days, and one "watch item" for the week ahead. Keep it under 200 words. Voice applies — this is a briefing, not a report.
