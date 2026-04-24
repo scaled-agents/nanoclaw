@@ -340,9 +340,9 @@ function waitForIpcMessage(): Promise<string | null> {
  */
 const CAPABILITY_SERVERS: Record<CapabilityProfile, Set<string>> = {
   core:     new Set(['nanoclaw', 'orderflow']),
-  research: new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'youtube']),
-  trading:  new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'katarunner', 'youtube']),
-  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdna', 'aphexdata', 'botrunner', 'katarunner', 'x', 'luxalgo', 'youtube', 'debug']),
+  research: new Set(['nanoclaw', 'orderflow', 'freqtrade', 'youtube']),
+  trading:  new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdata', 'botrunner', 'katarunner', 'youtube']),
+  full:     new Set(['nanoclaw', 'orderflow', 'freqtrade', 'aphexdata', 'botrunner', 'katarunner', 'x', 'luxalgo', 'youtube', 'debug']),
   kata:     new Set(['katamcp']),
 };
 
@@ -397,17 +397,6 @@ function buildMcpServers(mcpServerPath: string, containerInput: ContainerInput):
         FREQTRADE_PATH: process.env.FREQTRADE_PATH || 'freqtrade',
         FREQTRADE_DOCS_PATH: process.env.FREQTRADE_DOCS_PATH || '',
         FREQTRADE_STRATEGIES_DIR: process.env.FREQTRADE_STRATEGIES_DIR || '',
-      },
-    };
-  }
-
-  // aphexDNA: genome lifecycle MCP (create, fork, compile, attest, register)
-  if (enabled.has('aphexdna')) {
-    servers.aphexdna = {
-      command: 'python3',
-      args: ['-m', 'aphexdna'],
-      env: {
-        REGISTRY_PATH: '.sdna-registry',
       },
     };
   }

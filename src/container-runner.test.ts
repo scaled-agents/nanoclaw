@@ -325,27 +325,4 @@ describe('container-runner sync behavior', () => {
     expect(removedStale).toBe(true);
   });
 
-  it('does not mount swarm reports when directory missing', async () => {
-    const mockFs = await import('fs');
-    const existsSyncMock = vi.mocked(mockFs.default.existsSync);
-
-    // existsSync returns false by default (from module mock) — swarm dir doesn't exist
-    existsSyncMock.mockReturnValue(false);
-
-    const { spawn } = await import('child_process');
-    const spawnMock = vi.mocked(spawn);
-
-    const resultPromise = runContainerAgent(testGroup, testInput, () => {});
-
-    fakeProc.emit('close', 0);
-    await vi.advanceTimersByTimeAsync(10);
-    await resultPromise;
-
-    // spawn args should NOT contain a swarm-reports bind mount (-v ...swarm-reports:...)
-    // Note: the SWARM_REPORT_DIR env var is always set regardless of mounts
-    const args = spawnMock.mock.calls[0]?.[1] as string[] | undefined;
-    const mountArgs = args?.filter((_a, i, arr) => arr[i - 1] === '-v') || [];
-    const hasSwarmMount = mountArgs.some((m) => m.includes('swarm-reports'));
-    expect(hasSwarmMount).toBe(false);
-  });
 });

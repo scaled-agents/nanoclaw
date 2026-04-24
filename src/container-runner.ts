@@ -337,7 +337,6 @@ function buildContainerArgs(
     'CONSOLE_OPERATOR_ID',
     'SUPABASE_USER_ID',
     'ORDERFLOW_API_URL',
-    'GITHUB_TOKEN',
     'TV_WEBHOOK_SECRET',
     'TV_MANUAL_BOT_URL',
     'TV_MANUAL_BOT_USERNAME',
@@ -445,10 +444,6 @@ function buildContainerArgs(
 
   // Forward group folder name
   args.push('-e', `GROUP_FOLDER=${groupFolder}`);
-
-  // Forward GitHub token for sdna publish
-  const ghToken = envVal('GITHUB_TOKEN');
-  if (ghToken) args.push('-e', `GITHUB_TOKEN=${ghToken}`);
 
   // Route API traffic through the credential proxy (containers never see real secrets)
   args.push(
@@ -624,7 +619,6 @@ export async function runContainerAgent(
         if (
           line.includes('[FREQTRADE]') ||
           line.includes('[aphexDATA]') ||
-          line.includes('[SWARM]') ||
           line.includes('[ORDERFLOW]')
         ) {
           logger.info({ container: group.folder }, line);

@@ -36,7 +36,7 @@ Comprehensive audit of NanoClaw's performance bottlenecks, reliability gaps, and
 
 ### 1.5 MCP Servers Always Spawned — HIGH
 - **File:** `container/agent-runner/src/index.ts:330-365`
-- **Issue:** Freqtrade MCP (Python) and aphexDNA MCP (Python) always initialized, even for non-trading queries. Each Python process imports heavy dependencies (freqtrade, ta-lib).
+- **Issue:** Freqtrade MCP (Python) always initialized, even for non-trading queries. The Python process imports heavy dependencies (freqtrade, ta-lib).
 - **Impact:** 5-10 seconds startup penalty per container
 - **Fix:** Make MCP servers conditional on env flags (like aphexDATA already is). Or lazy-spawn Python MCPs on first tool call.
 

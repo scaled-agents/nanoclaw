@@ -55,16 +55,8 @@ RUN pip install --break-system-packages "freqtrade[hyperopt]" freqtrade-client "
 COPY kata-mcp/ /app/kata-mcp/
 RUN pip install --break-system-packages /app/kata-mcp
 
-# Install aphexdna-core MCP server (genome lifecycle: create, fork, compile, attest, register)
-# Python `sdna` CLI entry point gets overwritten by FreqHub's npm link below — that's intentional.
-# aphexdna tools are accessed via MCP, not CLI.
-COPY aphexdna-core/ /app/aphexdna-core/
-RUN pip install --break-system-packages /app/aphexdna-core[mcp]
-
-# Install FreqHub CLI (sdna command for registry queries) — must be AFTER aphexdna-core
-# so npm link overwrites the Python sdna entry point
-COPY freqhub/ /app/freqhub/
-RUN cd /app/freqhub && npm install --omit=dev && npm link --force
+# Install trade-md CLI (TRADE.md lint, compile, explain, diff)
+RUN pip install --break-system-packages trade-md
 
 # Set default freqtrade binary path
 ENV FREQTRADE_PATH=/usr/local/bin/freqtrade

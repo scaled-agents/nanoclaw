@@ -32,7 +32,7 @@ export interface AllowedRoot {
  * Fewer tools = less prompt bloat = faster time-to-first-token.
  *
  * - core:     nanoclaw + orderflow (~23 tools) — conversational groups
- * - research: core + freqtrade + aphexdna (~102 tools) — research groups
+ * - research: core + freqtrade + youtube (~102 tools) — research groups
  * - trading:  research + aphexdata + botrunner (~122 tools) — trading-enabled groups
  * - full:     all servers (~125+ tools) — main group only
  */
