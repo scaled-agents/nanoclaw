@@ -123,6 +123,15 @@
       "min_favorable_sharpe": -0.5,
       "max_strategyzer_runs_per_day": 10,
       "gaps_per_run": 3
+    },
+    "benchmark": {
+      "pair": "BTC/USDT",
+      "measurement": "cumulative_return_vs_buy_hold"
+    },
+    "daily_kata": {
+      "rollup_includes_five_questions": true,
+      "target_condition_horizon_days": 3,
+      "negative_alpha_urgency_multiplier": 1.5
     }
   },
 

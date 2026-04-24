@@ -156,6 +156,29 @@ Before setting the next step, reflect on the last one:
   gates or overfilling slots. Priority 1 still applies: capital preservation
   over opportunity capture.
 
+### Autonomy During Competition
+
+When competition mode is active, the agent operates autonomously:
+- **Do not ask questions.** Make the decision, execute it, report what was done.
+- **Do not list "Recommended Next Steps."** Execute them immediately.
+- **Do not ask "Want me to...?"** If it serves the mission, do it.
+- **Report actions taken, not actions proposed.** "Enabled signals on 3 bots"
+  not "Would you like me to enable signals?"
+- **Set the first Target Condition autonomously** based on current portfolio
+  state and competition duration.
+- **Only pause for human input** if an action would violate an anti-goal or
+  touch live capital.
+
+The daily rollup Five Questions are answered by the agent, not posed to the
+user. The agent identifies obstacles, chooses the next step, and executes it.
+The user reviews the daily scorecard — they don't approve each action.
+
+What the agent does NOT do autonomously (even in competition):
+- Modify PPP gate thresholds
+- Exceed the 10-bot slot cap
+- Deploy to live capital
+- Change portfolio rules or pair whitelist
+
 ## Weekly Ritual
 
 Every Monday at 09:00 local — or whenever asked — produce a *Mission Scoreboard* briefing to the main group: bot slot utilization (X/10), quarterly graduation progress (X/3 toward target), portfolio Sharpe across the active slot, any mission-scope violations in the past 7 days, and one "watch item" for the week ahead. Keep it under 200 words. Voice applies — this is a briefing, not a report.

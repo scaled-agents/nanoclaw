@@ -218,6 +218,35 @@ Group coverage (bots + queue):
   Deficit: {yes/no}
 ```
 
+## ALPHA-AWARE URGENCY
+
+When the BTC benchmark shows negative alpha, the candidate pipeline
+increases urgency to fill gaps that could restore positive performance.
+
+```
+# After Step 0 (Competition Guard), check benchmark alpha
+if state.benchmark and state.benchmark.daily_snapshots:
+  last_snapshot = state.benchmark.daily_snapshots[-1]
+  alpha = last_snapshot.alpha_pct
+
+  # Negative alpha for 3+ consecutive days → increase urgency
+  recent = state.benchmark.daily_snapshots[-3:]
+  consecutive_negative = all(s.alpha_pct < 0 for s in recent) if len(recent) >= 3 else False
+
+  if consecutive_negative:
+    # Increase gaps_per_run by urgency multiplier (from scoring-config)
+    urgency = scoring_config.COMPETITION_MODE.daily_kata.negative_alpha_urgency_multiplier
+    gaps_per_run = int(gaps_per_run * urgency)
+    log "ALPHA URGENCY: negative alpha for 3+ days, gaps_per_run increased to {gaps_per_run}"
+
+  # Bias target selection toward archetypes that counter current weakness
+  # If portfolio is trend-heavy and losing, prefer range/vol candidates
+  # If portfolio is range-heavy in trending market, prefer trend candidates
+```
+
+This does NOT lower quality gates — it increases the *rate* of candidate
+generation to fill gaps faster when the portfolio is underperforming.
+
 ## GRACEFUL DEGRADATION
 
 - `competition-state.json` missing → exit immediately, no error
