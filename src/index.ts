@@ -266,6 +266,17 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     return false;
   }
 
+  // Safety net: if the container exited without sending any output to the user,
+  // roll back the cursor so messages are re-processed by the next container.
+  if (!outputSentToUser) {
+    lastAgentTimestamp[chatJid] = previousCursor;
+    saveState();
+    logger.warn(
+      { group: group.name },
+      'Container exited without output, rolled back cursor',
+    );
+  }
+
   return true;
 }
 
@@ -432,7 +443,11 @@ async function startMessageLoop(): Promise<void> {
                 logger.warn({ chatJid, err }, 'Failed to set typing indicator'),
               );
           } else {
-            // No active container — enqueue for a new one
+            // No active container or container is busy — enqueue for next turn
+            logger.debug(
+              { chatJid, count: messagesToSend.length },
+              'Container busy or inactive, queuing messages',
+            );
             queue.enqueueMessageCheck(chatJid);
           }
         }

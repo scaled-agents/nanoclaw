@@ -179,6 +179,7 @@ export class GroupQueue {
   sendMessage(groupJid: string, text: string): boolean {
     const state = this.getGroup(groupJid);
     if (!state.messageActive || !state.messageGroupFolder) return false;
+    if (!state.messageIdleWaiting) return false; // Don't pipe mid-query — queue instead
     state.messageIdleWaiting = false; // Agent is about to receive work, no longer idle
 
     const inputDir = path.join(

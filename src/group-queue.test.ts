@@ -524,6 +524,36 @@ describe('GroupQueue', () => {
     await vi.advanceTimersByTimeAsync(10);
   });
 
+  it('sendMessage returns false when container is active but not idle', async () => {
+    let resolveProcess: () => void;
+
+    const processMessages = vi.fn(async () => {
+      await new Promise<void>((resolve) => {
+        resolveProcess = resolve;
+      });
+      return true;
+    });
+
+    queue.setProcessMessagesFn(processMessages);
+    queue.enqueueMessageCheck('group1@g.us');
+    await vi.advanceTimersByTimeAsync(10);
+    queue.registerProcess(
+      'group1@g.us',
+      {} as any,
+      'container-1',
+      'test-group',
+      false,
+    );
+
+    // Container is active but NOT idle (no notifyIdle called)
+    // This simulates a TV signal arriving while the agent is mid-query
+    const result = queue.sendMessage('group1@g.us', 'tv signal text');
+    expect(result).toBe(false);
+
+    resolveProcess!();
+    await vi.advanceTimersByTimeAsync(10);
+  });
+
   it('tasks drain independently of messages', async () => {
     const executionOrder: string[] = [];
     let resolveFirstTask: () => void;
