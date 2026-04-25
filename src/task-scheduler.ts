@@ -157,6 +157,7 @@ async function runTask(
       schedule_value: t.schedule_value,
       status: t.status,
       next_run: t.next_run,
+      skills_allowlist: t.skills_allowlist,
     })),
   );
 
@@ -178,6 +179,9 @@ async function runTask(
   };
 
   try {
+    const skillsAllowlist = task.skills_allowlist
+      ? (JSON.parse(task.skills_allowlist) as string[])
+      : undefined;
     const output = await runContainerAgent(
       group,
       {
@@ -189,6 +193,7 @@ async function runTask(
         assistantName: ASSISTANT_NAME,
         model: resolveModel(task.prompt),
         capabilities: group.containerConfig?.capabilities,
+        skillsAllowlist,
       },
       (proc, containerName) =>
         deps.onProcess(

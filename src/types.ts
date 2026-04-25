@@ -81,6 +81,7 @@ export interface ScheduledTask {
   last_result: string | null;
   status: 'active' | 'paused' | 'completed';
   created_at: string;
+  skills_allowlist?: string | null;
 }
 
 export interface TaskRunLog {

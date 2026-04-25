@@ -93,6 +93,16 @@ function createSchema(database: Database.Database): void {
     /* column already exists */
   }
 
+  // Add skills_allowlist column if it doesn't exist (migration for existing DBs)
+  // JSON-encoded string array of skill names, or NULL for all skills.
+  try {
+    database.exec(
+      `ALTER TABLE scheduled_tasks ADD COLUMN skills_allowlist TEXT NULL`,
+    );
+  } catch {
+    /* column already exists */
+  }
+
   // Add is_bot_message column if it doesn't exist (migration for existing DBs)
   try {
     database.exec(
@@ -382,8 +392,8 @@ export function createTask(
 ): void {
   db.prepare(
     `
-    INSERT INTO scheduled_tasks (id, group_folder, chat_jid, prompt, schedule_type, schedule_value, context_mode, next_run, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO scheduled_tasks (id, group_folder, chat_jid, prompt, schedule_type, schedule_value, context_mode, next_run, status, created_at, skills_allowlist)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
   ).run(
     task.id,
@@ -396,6 +406,7 @@ export function createTask(
     task.next_run,
     task.status,
     task.created_at,
+    task.skills_allowlist ?? null,
   );
 }
 
@@ -424,7 +435,12 @@ export function updateTask(
   updates: Partial<
     Pick<
       ScheduledTask,
-      'prompt' | 'schedule_type' | 'schedule_value' | 'next_run' | 'status'
+      | 'prompt'
+      | 'schedule_type'
+      | 'schedule_value'
+      | 'next_run'
+      | 'status'
+      | 'skills_allowlist'
     >
   >,
 ): void {
@@ -450,6 +466,10 @@ export function updateTask(
   if (updates.status !== undefined) {
     fields.push('status = ?');
     values.push(updates.status);
+  }
+  if (updates.skills_allowlist !== undefined) {
+    fields.push('skills_allowlist = ?');
+    values.push(updates.skills_allowlist);
   }
 
   if (fields.length === 0) return;

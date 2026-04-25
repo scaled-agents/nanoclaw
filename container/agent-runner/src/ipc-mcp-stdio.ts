@@ -91,6 +91,7 @@ SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
     schedule_value: z.string().describe('cron: "*/5 * * * *" | interval: milliseconds like "300000" | once: local timestamp like "2026-02-01T15:30:00" (no Z suffix!)'),
     context_mode: z.enum(['group', 'isolated']).default('group').describe('group=runs with chat history and memory, isolated=fresh session (include context in prompt)'),
     target_group_jid: z.string().optional().describe('(Main group only) JID of the group to schedule the task for. Defaults to the current group.'),
+    skills_allowlist: z.array(z.string()).optional().describe('Optional list of skill names to mount in the container. When set, only these skills are available. When omitted, all skills are mounted.'),
   },
   async (args) => {
     // Validate schedule_value before writing IPC
@@ -132,7 +133,7 @@ SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
 
     const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const data = {
+    const data: Record<string, unknown> = {
       type: 'schedule_task',
       taskId,
       prompt: args.prompt,
@@ -143,6 +144,9 @@ SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
       createdBy: groupFolder,
       timestamp: new Date().toISOString(),
     };
+    if (args.skills_allowlist) {
+      data.skills_allowlist = JSON.stringify(args.skills_allowlist);
+    }
 
     writeIpcFile(TASKS_DIR, data);
 
@@ -255,6 +259,7 @@ server.tool(
     prompt: z.string().optional().describe('New prompt for the task'),
     schedule_type: z.enum(['cron', 'interval', 'once']).optional().describe('New schedule type'),
     schedule_value: z.string().optional().describe('New schedule value (see schedule_task for format)'),
+    skills_allowlist: z.array(z.string()).optional().describe('Optional list of skill names to mount in the container. When set, only these skills are available. Pass empty array to clear (restore all skills).'),
   },
   async (args) => {
     // Validate schedule_value if provided
@@ -290,6 +295,11 @@ server.tool(
     if (args.prompt !== undefined) data.prompt = args.prompt;
     if (args.schedule_type !== undefined) data.schedule_type = args.schedule_type;
     if (args.schedule_value !== undefined) data.schedule_value = args.schedule_value;
+    if (args.skills_allowlist !== undefined) {
+      data.skills_allowlist = args.skills_allowlist.length > 0
+        ? JSON.stringify(args.skills_allowlist)
+        : undefined; // empty array = clear allowlist (NULL in DB = all skills)
+    }
 
     writeIpcFile(TASKS_DIR, data);
 
