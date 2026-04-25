@@ -1,7 +1,7 @@
 /**
  * Stdio MCP Server for NanoClaw Bot Runner Integration
  *
- * Provides 7 tools for managing FreqTrade paper trading bots:
+ * Provides 8 tools for managing FreqTrade paper trading bots:
  *   bot_start          — request a new FreqTrade dry-run container
  *   bot_stop           — request container removal
  *   bot_toggle_signals — enable/disable trading signals
@@ -9,6 +9,7 @@
  *   bot_list           — list all managed bots
  *   bot_profit         — read paper P&L
  *   bot_trades         — read recent trade history
+ *   bot_place_trade    — force-execute a trade via /forcebuy
  *
  * Communication: writes .request.json files to a shared mount directory,
  * reads .status.json files written by the host-side bot-runner.
@@ -360,6 +361,71 @@ server.tool(
       return ok(result);
     } catch (e) {
       return err(`bot_trades failed: ${(e as Error).message}`);
+    }
+  },
+);
+
+// ─── Place Trade ───────────────────────────────────────────────────
+
+server.tool(
+  'bot_place_trade',
+  'Place a forced trade on a running FreqTrade bot via the /forcebuy API endpoint. The bot must have force_entry_enable=true in its config. Returns trade details from FreqTrade.',
+  {
+    deployment_id: z.string().describe('Deployment ID (e.g. "tv-manual")'),
+    pair: z.string().describe('Trading pair (e.g. "ETH/USDT:USDT")'),
+    side: z.enum(['long', 'short']).describe('Trade direction'),
+    stake_amount: z.number().positive().describe('Stake amount in USDT'),
+    price: z
+      .number()
+      .nullable()
+      .optional()
+      .describe('Limit price (null for market order)'),
+    stoploss: z
+      .number()
+      .nullable()
+      .optional()
+      .describe('Stop-loss price'),
+    takeprofit: z
+      .number()
+      .nullable()
+      .optional()
+      .describe('Take-profit price'),
+    order_tag: z
+      .string()
+      .optional()
+      .describe('Order tag for attribution (e.g. "tv_source_signalid")'),
+  },
+  async (args) => {
+    try {
+      if (!fs.existsSync(REQUEST_DIR)) {
+        return err('Bot runner request directory not found.');
+      }
+
+      const requestId = generateRequestId();
+      const result = await submitAndWait(
+        requestId,
+        {
+          type: 'place_trade',
+          deployment_id: args.deployment_id,
+          pair: args.pair,
+          side: args.side,
+          stake_amount: args.stake_amount,
+          price: args.price ?? null,
+          stoploss: args.stoploss ?? null,
+          takeprofit: args.takeprofit ?? null,
+          order_tag: args.order_tag,
+          submitted_at: new Date().toISOString(),
+        },
+        15_000,
+      );
+
+      if (result.status === 'failed') {
+        return err(`Failed to place trade: ${result.error}`);
+      }
+
+      return ok(result);
+    } catch (e) {
+      return err(`bot_place_trade failed: ${(e as Error).message}`);
     }
   },
 );

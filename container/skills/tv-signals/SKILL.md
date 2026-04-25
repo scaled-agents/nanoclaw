@@ -44,7 +44,7 @@ TradingView Alert
          ▼
     ┌────┴────┐
     │ PASS?   │
-    ├─YES─────┤────► freqtrade_place_trade (manual bot)
+    ├─YES─────┤────► bot_place_trade (manual bot)
     │         │      order_tag: "tv_{source_id}_{signal_id}"
     ├─NO──────┤────► log rejection, notify user
     └─────────┘
@@ -68,13 +68,13 @@ manual-trade FreqTrade bot, separate from the autonomous pipeline.
 | Requirement | Check | Required |
 |------------|-------|----------|
 | `TV_WEBHOOK_SECRET` | `echo $TV_WEBHOOK_SECRET` — must be non-empty | Yes |
-| Manual-trade FreqTrade bot | `freqtrade_fetch_bot_status(bot_id="tv-manual")` — must respond | Yes |
+| Manual-trade FreqTrade bot | `bot_status(deployment_id="tv-manual")` — must respond | Yes |
 | `market-prior.json` | For regime_check rule | For regime_check |
 | `CHART_IMG_API_KEY` | For chart_vision rule | For chart_vision |
 | `FINNHUB_API_KEY` | For technical_analysis rule | For technical_analysis |
 
 The manual-trade bot is a dedicated FreqTrade instance running the `TVManualTrade`
-no-op strategy. It accepts only forced trades via `freqtrade_place_trade`. It starts
+no-op strategy. It accepts only forced trades via `bot_place_trade`. It starts
 in `dry_run: true` (paper mode) by default. See the `add-tv-signals` installer for
 setup instructions.
 
@@ -363,7 +363,7 @@ Prevent signal floods from misconfigured Pine Scripts or runaway alerts.
 
 Prevent over-concentration in TV trades.
 
-**Check:** Call `freqtrade_fetch_bot_status(bot_id="tv-manual")` to get open positions.
+**Check:** Call `bot_status(deployment_id="tv-manual")` to get open positions.
 Count open TV trades, total exposure %, and per-pair trades.
 
 **Pass:** All below limits.
@@ -447,11 +447,11 @@ If all rules pass:
 
 **Pre-flight: verify tv-manual bot is reachable.**
 ```
-bot_status = freqtrade_fetch_bot_status(bot_id="tv-manual")
+bot_status = bot_status(deployment_id="tv-manual")
 If bot_status fails or returns an error:
   Log: "tv-manual bot unreachable — cannot execute signal {signal_id}"
   Record signal as validated_but_not_executed, reason: "bot_unavailable"
-  STOP (do not attempt place_trade)
+  STOP (do not attempt bot_place_trade)
 ```
 
 **Compute final sizing:**
@@ -473,19 +473,18 @@ final_stake_pct = clamp(base_stake_pct * sizing_modifier,
                         config.sizing.max_stake_pct)
 
 # Convert percentage to absolute stake currency (USDT)
-wallet = freqtrade_fetch_balance(bot_id="tv-manual")
-wallet_total = wallet.total (available balance in stake currency)
+wallet = bot_profit(deployment_id="tv-manual")
+wallet_total = wallet.paper_pnl.total (available balance in stake currency)
 stake_amount = wallet_total * final_stake_pct / 100
 ```
 
 **Entry signal:**
 ```
-freqtrade_place_trade(
-  bot_id: "tv-manual",
+bot_place_trade(
+  deployment_id: "tv-manual",
   pair: normalized.pair,
   side: normalized.direction,
   stake_amount: stake_amount,
-  confirm: true,
   price: null,                           # market order
   stoploss: normalized.stop_loss || null,
   takeprofit: normalized.take_profit || null,
@@ -495,15 +494,10 @@ freqtrade_place_trade(
 
 **Exit signal (when `allow_exit_signals: true` and `signal_type == "exit"`):**
 
-Match open position by pair + direction on the manual trade bot:
-```
-freqtrade_force_exit(
-  bot_id: "tv-manual",
-  pair: normalized.pair,
-  side: normalized.direction,
-  order_tag: "tv_exit_{source_id}_{signal_id}"
-)
-```
+Match open position by pair + direction on the manual trade bot.
+> Note: `bot_force_exit` is not yet implemented in the botrunner pipeline.
+> For now, exit signals are logged as `validated_but_not_executed` with
+> `reason: "force_exit_not_available"`. This is a future addition.
 
 If no matching open position exists, log `reason: "no_matching_position"` and skip.
 
@@ -746,7 +740,7 @@ payload is preserved for debugging. The user is notified via agent feed.
 
 ### Manual-trade bot offline
 
-If `freqtrade_fetch_bot_status(bot_id="tv-manual")` fails or returns no response:
+If `bot_status(deployment_id="tv-manual")` fails or returns no response:
 - Log the signal as validated but not executed
 - Post warning: "TV signal validated but manual-trade bot is offline. Signal logged but not executed."
 - Do NOT retry — the signal is time-sensitive. Stale signals are worse than missed signals.

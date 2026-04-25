@@ -90,6 +90,7 @@ interface BotRequest {
     | 'stop_bot'
     | 'toggle_signals'
     | 'get_status'
+    | 'place_trade'
     | 'webhook_create'
     | 'webhook_test'
     | 'webhook_delete';
@@ -104,6 +105,13 @@ interface BotRequest {
   dry_run?: boolean; // default true
   webhook_config?: any; // for webhook_create
   webhook_id?: string; // for webhook_test/delete
+  // place_trade fields
+  side?: 'long' | 'short';
+  stake_amount?: number;
+  price?: number | null;
+  stoploss?: number | null;
+  takeprofit?: number | null;
+  order_tag?: string;
   submitted_at: string;
 }
 
@@ -406,11 +414,13 @@ function ftApiCall(
   method: string,
   endpoint: string,
   password: string,
+  body?: object,
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const auth = Buffer.from(`${FT_API_USERNAME}:${password}`).toString(
       'base64',
     );
+    const bodyStr = body ? JSON.stringify(body) : undefined;
     const req = http.request(
       {
         hostname: '127.0.0.1',
@@ -420,6 +430,9 @@ function ftApiCall(
         headers: {
           Authorization: `Basic ${auth}`,
           'Content-Type': 'application/json',
+          ...(bodyStr
+            ? { 'Content-Length': Buffer.byteLength(bodyStr) }
+            : {}),
         },
         timeout: 10_000,
       },
@@ -434,6 +447,7 @@ function ftApiCall(
       req.destroy();
       reject(new Error('Request timeout'));
     });
+    if (bodyStr) req.write(bodyStr);
     req.end();
   });
 }
@@ -1275,6 +1289,57 @@ async function processRequest(requestFile: string): Promise<void> {
           status: 'completed',
           bot_status: botStatus,
         });
+        break;
+      }
+
+      case 'place_trade': {
+        if (!req.pair || !req.side || !req.stake_amount) {
+          throw new Error('place_trade requires pair, side, and stake_amount');
+        }
+        const tradeBot = activeBots.get(req.deployment_id);
+        if (!tradeBot) throw new Error(`Bot ${req.deployment_id} not found`);
+        if (tradeBot.status !== 'running') {
+          throw new Error(
+            `Bot ${req.deployment_id} is ${tradeBot.status}, cannot place trade`,
+          );
+        }
+
+        const tradeResult = await ftApiCall(
+          tradeBot.port,
+          'POST',
+          'forcebuy',
+          tradeBot.password,
+          {
+            pair: req.pair,
+            stake_amount: req.stake_amount,
+            side: req.side,
+            price: req.price ?? null,
+            order_type: 'market',
+            ...(req.stoploss != null ? { stoploss: req.stoploss } : {}),
+            ...(req.takeprofit != null ? { takeprofit: req.takeprofit } : {}),
+            ...(req.order_tag ? { enter_tag: req.order_tag } : {}),
+          },
+        );
+
+        if (tradeResult.status >= 400) {
+          throw new Error(
+            `FreqTrade forcebuy failed (${tradeResult.status}): ${tradeResult.body}`,
+          );
+        }
+
+        const parsed = JSON.parse(tradeResult.body);
+        writeRequestStatus(requestId, {
+          request_id: requestId,
+          type: req.type,
+          status: 'completed',
+          deployment_id: req.deployment_id,
+          trade: parsed,
+          placed_at: new Date().toISOString(),
+        });
+        notifyUser(
+          chatJid,
+          `Trade placed: ${req.side} ${req.pair} @ ${req.stake_amount} USDT (${req.order_tag || 'no tag'})`,
+        );
         break;
       }
 
