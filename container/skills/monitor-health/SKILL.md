@@ -387,6 +387,20 @@ for campaign in campaigns where state in {"paper_trading", "graduated"}:
     # >= cfg.dead_container_consecutive_checks (default 2)
 ```
 
+**Pending-start reconciliation:**
+
+For each deployment in deployments.json where `bot_runner_status == "pending_start"`:
+  Check actual container via `bot_status(dep.id)`.
+  If bot_status returns `status: "running"`:
+    - The container started successfully but the original `bot_start` poll timed out.
+    - Update: `dep.bot_runner_status = "running"`, `dep.api_port = status.api_port`
+    - Clear `dep.bot_runner_note`
+    - Log: "Reconciled pending_start → running: {strategy} on port {api_port}"
+  If bot_status returns error/not found:
+    - Container never started. Leave as `pending_start` for retry.
+    - On next tick, attempt `bot_start(dep.id, dep.strategy, dep.pairs[0], dep.timeframe)`.
+    - If second attempt also fails, retire with reason `container_start_failed`.
+
 **Orphan detection:**
 
 For each running bot (from `bot_list()`):
