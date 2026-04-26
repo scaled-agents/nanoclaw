@@ -503,10 +503,10 @@ season.dashboard.competition_position = {
 **OPERATIONAL HEALTH:**
 
 ```
-# Slots — from deployments.json
+# Slots — from deployments.json (canonical formula, matches monitor-deploy)
 deployments = read auto-mode/deployments.json
 active_deps = [d for d in deployments
-               if d.state in ("shadow", "active", "paused")
+               if d.state != "retired"
                and d.slot_state in ("trial", "graduated")]
 slots_filled = len(active_deps)
 
@@ -514,7 +514,7 @@ slots_filled = len(active_deps)
 campaigns = read auto-mode/campaigns.json (already in memory)
 by_group = {"trend": 0, "range": 0, "vol": 0, "carry": 0}
 for c in campaigns:
-  if c.state not in ("retired",) and c.slot_state in ("trial", "graduated"):
+  if c.state != "retired" and c.slot_state in ("trial", "graduated"):
     group = c.correlation_group ?? "carry"
     by_group[group] += 1
 

@@ -2,7 +2,13 @@ import { ChildProcess } from 'child_process';
 import { CronExpressionParser } from 'cron-parser';
 import fs from 'fs';
 
-import { ASSISTANT_NAME, SCHEDULER_POLL_INTERVAL, TIMEZONE } from './config.js';
+import {
+  ASSISTANT_NAME,
+  BUDGET_EXEMPT_PATTERNS,
+  DAILY_TASK_BUDGET,
+  SCHEDULER_POLL_INTERVAL,
+  TIMEZONE,
+} from './config.js';
 import {
   ContainerOutput,
   runContainerAgent,
@@ -10,6 +16,7 @@ import {
 } from './container-runner.js';
 import {
   getAllTasks,
+  getDailyTaskRunCount,
   getDueTasks,
   getTaskById,
   logTaskRun,
@@ -31,6 +38,35 @@ const OPUS_PATTERNS = [
 function resolveModel(prompt: string): string | undefined {
   for (const pat of OPUS_PATTERNS) {
     if (pat.test(prompt)) return 'claude-opus-4-6';
+  }
+  return undefined;
+}
+
+function isBudgetExempt(task: ScheduledTask): boolean {
+  return BUDGET_EXEMPT_PATTERNS.some(
+    (pat) => pat.test(task.id) || pat.test(task.prompt),
+  );
+}
+
+/**
+ * Fallback max_output_tokens when the task has no explicit value.
+ * Creative/research tasks get 16K; routine monitor tasks get 4-8K.
+ * Returns undefined to use the global default (64K) if no pattern matches.
+ */
+const OUTPUT_TOKEN_DEFAULTS: Array<[RegExp, number]> = [
+  [/scout|strategyzer|candidate.?pipeline/i, 16000],
+  [/monitor.?health/i, 8000],
+  [/monitor.?portfolio/i, 8000],
+  [/market.?timing/i, 8000],
+  [/monitor.?deploy/i, 4000],
+  [/monitor.?kata/i, 4000],
+];
+
+function resolveMaxOutputTokens(task: ScheduledTask): number | undefined {
+  if (task.max_output_tokens) return task.max_output_tokens;
+  const text = `${task.id} ${task.prompt}`;
+  for (const [pat, tokens] of OUTPUT_TOKEN_DEFAULTS) {
+    if (pat.test(text)) return tokens;
   }
   return undefined;
 }
@@ -194,6 +230,7 @@ async function runTask(
         model: resolveModel(task.prompt),
         capabilities: group.containerConfig?.capabilities,
         skillsAllowlist,
+        maxOutputTokens: resolveMaxOutputTokens(task),
       },
       (proc, containerName) =>
         deps.onProcess(
@@ -276,10 +313,32 @@ export function startSchedulerLoop(deps: SchedulerDependencies): void {
         logger.info({ count: dueTasks.length }, 'Found due tasks');
       }
 
+      // Check daily budget before dispatching non-exempt tasks
+      let budgetExceeded = false;
+      if (DAILY_TASK_BUDGET > 0) {
+        const dailyCount = getDailyTaskRunCount();
+        if (dailyCount >= DAILY_TASK_BUDGET) {
+          budgetExceeded = true;
+          logger.warn(
+            { dailyCount, budget: DAILY_TASK_BUDGET },
+            'Daily task budget exceeded — only exempt tasks will run',
+          );
+        }
+      }
+
       for (const task of dueTasks) {
         // Re-check task status in case it was paused/cancelled
         const currentTask = getTaskById(task.id);
         if (!currentTask || currentTask.status !== 'active') {
+          continue;
+        }
+
+        // Skip non-exempt tasks when budget is exceeded
+        if (budgetExceeded && !isBudgetExempt(currentTask)) {
+          logger.info(
+            { taskId: currentTask.id },
+            'Task skipped due to daily budget limit',
+          );
           continue;
         }
 

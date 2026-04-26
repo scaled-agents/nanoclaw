@@ -43,6 +43,7 @@ export interface ContainerInput {
   model?: string;
   capabilities?: import('./types.js').CapabilityProfile;
   skillsAllowlist?: string[];
+  maxOutputTokens?: number;
 }
 
 export interface ContainerOutput {
@@ -364,6 +365,7 @@ function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
   groupFolder: string,
+  maxOutputTokens?: number,
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
@@ -485,11 +487,14 @@ function buildContainerArgs(
   const finnhubKey = envVal('FINNHUB_API_KEY');
   if (finnhubKey) args.push('-e', `FINNHUB_API_KEY=${finnhubKey}`);
 
-  // Raise the per-response output token ceiling above the SDK default (32K).
-  // Long session-resume catch-ups (accumulated monitor ticks, research cycles)
-  // can easily exceed 32K, causing "response exceeded 32000 output token maximum".
-  const maxOutputTokens = process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || '64000';
-  args.push('-e', `CLAUDE_CODE_MAX_OUTPUT_TOKENS=${maxOutputTokens}`);
+  // Per-task output token ceiling. Falls back to env var, then 64K global default.
+  // Tight limits on routine tasks (monitor ticks) save tokens; higher limits
+  // for research/kata tasks prevent truncation on long responses.
+  const effectiveMaxTokens =
+    maxOutputTokens?.toString() ||
+    process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS ||
+    '64000';
+  args.push('-e', `CLAUDE_CODE_MAX_OUTPUT_TOKENS=${effectiveMaxTokens}`);
 
   // Forward group folder name
   args.push('-e', `GROUP_FOLDER=${groupFolder}`);
@@ -555,7 +560,12 @@ export async function runContainerAgent(
   );
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName, group.folder);
+  const containerArgs = buildContainerArgs(
+    mounts,
+    containerName,
+    group.folder,
+    input.maxOutputTokens,
+  );
 
   logger.debug(
     {

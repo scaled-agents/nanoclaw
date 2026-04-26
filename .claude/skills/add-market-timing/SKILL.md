@@ -72,7 +72,7 @@ Ask the agent to schedule a recurring task:
 
 The agent will use `schedule_task` to set up:
 ```
-schedule_task(name: "market_timing_cycle", schedule: "0 */4 * * *", prompt: "Run a full Market Timing scoring cycle...")
+schedule_task(name: "market_timing_cycle", schedule: "0 */4 * * *", max_output_tokens: 8000, prompt: "Run a full Market Timing scoring cycle...")
 ```
 
 ### Restart the service

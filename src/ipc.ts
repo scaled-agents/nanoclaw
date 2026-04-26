@@ -165,6 +165,7 @@ export async function processTaskIpc(
     schedule_value?: string;
     context_mode?: string;
     skills_allowlist?: string;
+    max_output_tokens?: number;
     groupFolder?: string;
     chatJid?: string;
     targetJid?: string;
@@ -270,6 +271,7 @@ export async function processTaskIpc(
           status: 'active',
           created_at: new Date().toISOString(),
           skills_allowlist: data.skills_allowlist ?? null,
+          max_output_tokens: data.max_output_tokens ?? null,
         });
         logger.info(
           { taskId, sourceGroup, targetFolder, contextMode },
@@ -361,6 +363,8 @@ export async function processTaskIpc(
           updates.schedule_value = data.schedule_value;
         if (data.skills_allowlist !== undefined)
           updates.skills_allowlist = data.skills_allowlist || null;
+        if (data.max_output_tokens !== undefined)
+          updates.max_output_tokens = data.max_output_tokens ?? null;
 
         // Recompute next_run if schedule changed
         if (data.schedule_type || data.schedule_value) {

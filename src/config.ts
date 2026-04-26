@@ -57,6 +57,20 @@ export const MAX_CONCURRENT_CONTAINERS = Math.max(
   1,
   parseInt(process.env.MAX_CONCURRENT_CONTAINERS || '5', 10) || 5,
 );
+
+// Daily task budget: maximum task runs per day (0 = unlimited).
+// When exceeded, only critical tasks (monitor-health) continue running.
+export const DAILY_TASK_BUDGET = parseInt(
+  process.env.DAILY_TASK_BUDGET || '0',
+  10,
+);
+
+// Task IDs (or prompt substrings) that are exempt from budget limits.
+// These tasks always run even when the daily budget is exceeded.
+export const BUDGET_EXEMPT_PATTERNS = [
+  /monitor.?health/i,
+  /monitor.?deploy/i,
+];
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

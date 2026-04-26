@@ -75,19 +75,19 @@ The agent will use `schedule_task` for each:
 
 ```
 # Health check — every 15 min (fast-path: bot status, signals, retirement, graduation)
-schedule_task(name: "monitor_health_check", schedule: "*/15 * * * *", context_mode: "isolated",
+schedule_task(name: "monitor_health_check", schedule: "*/15 * * * *", context_mode: "isolated", max_output_tokens: 8000,
   prompt: "Run a monitor health check. Use the monitor-health skill: tick init, read state, refresh regimes, update metrics, check retirements (Triggers A-J), check graduations, log and sync. Message user only on state changes.")
 
 # Deployment — every 30 min (slot allocation with backtest verification)
-schedule_task(name: "monitor_deploy", schedule: "7,37 * * * *", context_mode: "isolated",
+schedule_task(name: "monitor_deploy", schedule: "7,37 * * * *", context_mode: "isolated", max_output_tokens: 4000,
   prompt: "Run monitor deployment check. Use the monitor-deploy skill: count slots, gather candidates, rank, verify with backtests (max 3), deploy as trials. Skip if slots full or cell-grid stale.")
 
 # Kata — hourly (kata race completion handler)
-schedule_task(name: "monitor_kata", schedule: "20 * * * *", context_mode: "isolated",
+schedule_task(name: "monitor_kata", schedule: "20 * * * *", context_mode: "isolated", max_output_tokens: 4000,
   prompt: "Run monitor kata check. Use the monitor-kata skill: check for completed kata races, run walk-forward validation, deploy if promising. Skip if no active races.")
 
 # Portfolio — daily at 00:00 UTC (correlation, tail risk, daily rollup)
-schedule_task(name: "monitor_portfolio", schedule: "0 0 * * *", context_mode: "isolated",
+schedule_task(name: "monitor_portfolio", schedule: "0 0 * * *", context_mode: "isolated", max_output_tokens: 8000,
   prompt: "Run monitor portfolio analysis. Use the monitor-portfolio skill: compute portfolio correlation, regime transitions (Sunday), tail risk CVaR, portfolio diagnosis, competition benchmark, experiment ledger review, daily briefing.")
 ```
 

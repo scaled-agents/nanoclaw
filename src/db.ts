@@ -103,6 +103,15 @@ function createSchema(database: Database.Database): void {
     /* column already exists */
   }
 
+  // Add per-task max_output_tokens column (NULL = use global default)
+  try {
+    database.exec(
+      `ALTER TABLE scheduled_tasks ADD COLUMN max_output_tokens INTEGER NULL`,
+    );
+  } catch {
+    /* column already exists */
+  }
+
   // Add is_bot_message column if it doesn't exist (migration for existing DBs)
   try {
     database.exec(
@@ -392,8 +401,8 @@ export function createTask(
 ): void {
   db.prepare(
     `
-    INSERT INTO scheduled_tasks (id, group_folder, chat_jid, prompt, schedule_type, schedule_value, context_mode, next_run, status, created_at, skills_allowlist)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO scheduled_tasks (id, group_folder, chat_jid, prompt, schedule_type, schedule_value, context_mode, next_run, status, created_at, skills_allowlist, max_output_tokens)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
   ).run(
     task.id,
@@ -407,6 +416,7 @@ export function createTask(
     task.status,
     task.created_at,
     task.skills_allowlist ?? null,
+    task.max_output_tokens ?? null,
   );
 }
 
@@ -441,6 +451,7 @@ export function updateTask(
       | 'next_run'
       | 'status'
       | 'skills_allowlist'
+      | 'max_output_tokens'
     >
   >,
 ): void {
@@ -470,6 +481,10 @@ export function updateTask(
   if (updates.skills_allowlist !== undefined) {
     fields.push('skills_allowlist = ?');
     values.push(updates.skills_allowlist);
+  }
+  if (updates.max_output_tokens !== undefined) {
+    fields.push('max_output_tokens = ?');
+    values.push(updates.max_output_tokens);
   }
 
   if (fields.length === 0) return;
@@ -528,6 +543,35 @@ export function logTaskRun(log: TaskRunLog): void {
     log.result,
     log.error,
   );
+}
+
+// --- Daily budget tracking ---
+
+/**
+ * Get the number of task runs completed today (UTC).
+ * Used by the scheduler to enforce daily task budget limits.
+ */
+export function getDailyTaskRunCount(): number {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) as count FROM task_run_logs WHERE run_at >= ? || 'T00:00:00.000Z'`,
+    )
+    .get(today) as { count: number };
+  return row.count;
+}
+
+/**
+ * Get the total duration (ms) of task runs completed today (UTC).
+ */
+export function getDailyTaskRunDuration(): number {
+  const today = new Date().toISOString().slice(0, 10);
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(duration_ms), 0) as total FROM task_run_logs WHERE run_at >= ? || 'T00:00:00.000Z'`,
+    )
+    .get(today) as { total: number };
+  return row.total;
 }
 
 // --- Router state accessors ---
