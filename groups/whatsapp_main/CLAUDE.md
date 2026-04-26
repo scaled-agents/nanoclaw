@@ -26,6 +26,8 @@ When you receive a request, pick the right tool chain:
 
 | Request | Workflow | Tools |
 |---------|----------|-------|
+| "Run strategyzer" / "explore gap" / "find strategy for X" | Strategyzer | Invoke `/strategyzer` skill — diverge-evaluate-converge pipeline to fill portfolio gaps |
+| "Run scout" / "gap report" | Scout | Invoke `/scout` skill — score cell grid, produce gap-report.json |
 | "Test this strategy" | A | validate → download data → backtest → hyperopt → walk-forward → attest → register |
 | "What's wrong with this?" | Validation | `freqtrade_validate_strategy` + `freqtrade_detect_strategy_issues` |
 | "Build me an RSI strategy" | B | `sdna_registry_search` → `sdna search` (bash) → `sdna_init`/`sdna get` → fork → compile → Workflow A |
@@ -37,6 +39,8 @@ When you receive a request, pick the right tool chain:
 | "Compile for deployment" | Deploy | `sdna_compile` + `sdna_compile_config` → save to user_data/strategies/ |
 | "What have I tested?" | Report | `aphexdata_query_events` → group by strategy → summary |
 | "Download 12 months of BTC" | H | `freqtrade_download_data` with specified params |
+
+**Skill invocation rule:** When a user message matches a skill trigger keyword (see each skill's SKILL.md description), use the `Skill` tool to invoke it immediately. Do NOT just acknowledge the request — execute the skill. Common triggers: "strategyzer", "scout", "market-timing", "monitor", "kata", "gate-audit".
 
 ## Tool Split: MCP vs CLI
 
