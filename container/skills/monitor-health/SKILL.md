@@ -92,11 +92,12 @@ strategy graduates or when user says "Stage all graduated strategies".
 
 ```
 For each .py file in /workspace/group/user_data/strategies/:
-  Read header tags (first 10 lines):
+  Read header tags (first 12 lines):
     # ARCHETYPE: <type>
     # GRADUATED: true|false|<date>
     # VALIDATED_PAIRS: <pair1>, <pair2>, ...
     # WALK_FORWARD_DEGRADATION: <pct>
+    # WF_SHARPE: <sharpe_value>
 
   If GRADUATED is truthy (true, or a date string):
     1. Verify strategy file is accessible to FreqTrade
@@ -121,6 +122,7 @@ For each .py file in /workspace/group/user_data/strategies/:
   "timeframe": "1h",
   "base_stake_pct": 5,
   "wf_degradation_pct": 18,
+  "wf_sharpe": 0.87,
   "cells": [
     {
       "pair": "ETH/USDT:USDT",
@@ -1784,7 +1786,12 @@ Write header tags to strategy .py:
   # LIVE_TRADES: {trades}
   # CORRELATION_GROUP: {group}
 
-Add to roster.json (pre-stage config for fast future deployment)
+Add to roster.json (pre-stage config for fast future deployment).
+Stamp `wf_sharpe` into the roster entry (market-timing reads this for `net_edge`):
+  - Primary: `campaign.wfo_metrics.favorable_sharpe` (raw Sharpe, NOT 0-1 normalized kata_score)
+  - Fallback: strategy header tag `# WF_SHARPE`
+  - Fallback: strategy header tag `# KATA_SCORE`
+  If no source available, omit the field (market-timing will score net_edge = 0).
 Update TRADE.md at live graduation (third lifecycle sync boundary):
   TRADE_MD="/workspace/group/strategies/${strategy_name}.trade.md"
   1. Read existing TRADE.md
@@ -2278,6 +2285,7 @@ mkdir -p /workspace/group/auto-mode
       "timeframe": "1h",
       "base_stake_pct": 5,
       "wf_degradation_pct": 18,
+      "wf_sharpe": 0.87,
       "graduated_at": "2026-03-26",
       "cells": [
         {
