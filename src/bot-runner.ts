@@ -85,7 +85,7 @@ const AUTH_FAILURE_RESTART_THRESHOLD = 3; // restart container after 3 consecuti
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-interface BotRequest {
+export interface BotRequest {
   type:
     | 'start_bot'
     | 'stop_bot'
@@ -116,7 +116,7 @@ interface BotRequest {
   submitted_at: string;
 }
 
-interface BotInstance {
+export interface BotInstance {
   deploymentId: string;
   containerName: string;
   port: number;
@@ -629,7 +629,7 @@ function removeContainer(containerName: string): void {
   }
 }
 
-async function startBotContainer(req: BotRequest): Promise<BotInstance> {
+export async function startBotContainer(req: BotRequest): Promise<BotInstance> {
   const deploymentId = req.deployment_id;
 
   // Per-deployment mutex: prevent concurrent starts of the same bot

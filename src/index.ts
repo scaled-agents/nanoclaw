@@ -49,10 +49,13 @@ import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
 import {
   startBotRunner,
+  startBotContainer,
   stopBotContainer,
   toggleBotSignals,
 } from './bot-runner.js';
 import { startHealthTicker } from './health-ticker.js';
+import { startDeployTicker } from './deploy-ticker.js';
+import { startDataDownloader } from './data-downloader.js';
 import { startKataRunner } from './kata-runner.js';
 import { startConsoleSync } from './console-sync.js';
 import { startTvWebhook } from './tv-webhook.js';
@@ -667,20 +670,37 @@ async function main(): Promise<void> {
   // Health ticker — deterministic monitor-health replacement
   const mainGroupJid = Object.keys(registeredGroups)[0] ?? '';
   if (mainGroupJid) {
+    const tickerSendMessage = async (jid: string, rawText: string) => {
+      const channel = findChannel(channels, jid);
+      if (!channel) {
+        logger.warn({ jid }, 'Ticker: no channel owns JID');
+        return;
+      }
+      const text = formatOutbound(rawText);
+      if (text) await channel.sendMessage(jid, text);
+    };
+
     startHealthTicker({
       stopBotContainer,
       toggleBotSignals,
-      sendMessage: async (jid, rawText) => {
-        const channel = findChannel(channels, jid);
-        if (!channel) {
-          logger.warn({ jid }, 'Health ticker: no channel owns JID');
-          return;
-        }
-        const text = formatOutbound(rawText);
-        if (text) await channel.sendMessage(jid, text);
-      },
+      sendMessage: tickerSendMessage,
       chatJid: mainGroupJid,
     });
+
+    // Deploy ticker — deterministic monitor-deploy replacement
+    startDeployTicker({
+      startBotContainer: (req) =>
+        startBotContainer({
+          ...req,
+          submitted_at: new Date().toISOString(),
+        }),
+      stopBotContainer,
+      sendMessage: tickerSendMessage,
+      chatJid: mainGroupJid,
+    });
+
+    // Data downloader — deterministic data-download replacement
+    startDataDownloader();
   }
 
   startTvWebhook({
