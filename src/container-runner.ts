@@ -493,7 +493,7 @@ function buildContainerArgs(
   const effectiveMaxTokens =
     maxOutputTokens?.toString() ||
     process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS ||
-    '64000';
+    '8000';
   args.push('-e', `CLAUDE_CODE_MAX_OUTPUT_TOKENS=${effectiveMaxTokens}`);
 
   // Forward group folder name

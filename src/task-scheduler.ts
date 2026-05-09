@@ -35,9 +35,16 @@ const OPUS_PATTERNS = [
   /indicator.*orthogonality/i,
 ];
 
+const HAIKU_PATTERNS = [
+  /observability.?(collector|bleeding)/i,
+];
+
 function resolveModel(prompt: string): string | undefined {
   for (const pat of OPUS_PATTERNS) {
     if (pat.test(prompt)) return 'claude-opus-4-6';
+  }
+  for (const pat of HAIKU_PATTERNS) {
+    if (pat.test(prompt)) return 'claude-haiku-4-5-20251001';
   }
   return undefined;
 }
@@ -60,6 +67,7 @@ const OUTPUT_TOKEN_DEFAULTS: Array<[RegExp, number]> = [
   [/market.?timing/i, 8000],
   [/monitor.?deploy/i, 4000],
   [/monitor.?kata/i, 4000],
+  [/observability.?(collector|bleeding|reflection)/i, 4000],
 ];
 
 function resolveMaxOutputTokens(task: ScheduledTask): number | undefined {
