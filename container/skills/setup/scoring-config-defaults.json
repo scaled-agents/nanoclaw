@@ -20,10 +20,9 @@
   },
 
   "PORTFOLIO_CONSTRAINTS": {
-    "_comment": "Slot Management spec lowered max_total_deployments from 20 → 10 (hard cap, see SLOT_MANAGEMENT.max_total_bots). max_per_archetype/pair remain as soft caps; max_per_group is the structural diversification constraint.",
+    "_comment": "Soft caps for archetype/pair concentration. Hard slot limit lives in SLOT_MANAGEMENT.max_total_bots (authoritative — read that key, not max_total_deployments). max_per_group is enforced as a hard block in monitor-deploy.",
     "max_per_archetype": 5,
     "max_per_pair": 3,
-    "max_total_deployments": 10,
     "max_capital_per_deployment_pct": 10,
     "max_capital_per_archetype_pct": 25,
     "max_capital_per_pair_pct": 15
@@ -195,7 +194,8 @@
     "min_win_rate": 0.35,
     "min_win_rate_low_rr_archetypes": 0.28,
     "min_rr_ratio": 0.8,
-    "max_consecutive_losses": 4
+    "max_consecutive_losses": 4,
+    "min_regime_hit_rate": 0.60
   },
 
   "OVERFITTING_GATES": {
@@ -231,7 +231,8 @@
     "enabled": true,
     "min_win_rate": 0.30,
     "lookback_days": 30,
-    "max_per_tick": 3
+    "max_per_tick": 3,
+    "gap_report_max_age_hours": 8
   },
 
   "GAP_SCORING_WEIGHTS": {
@@ -261,8 +262,11 @@
     "ACTIVE_KATA_PENALTY": -10.0,
     "ACTIVE_TRIAGE_PENALTY": -8.0,
     "NO_CELL_DATA_PENALTY": -10.0,
-    "REGIME_ALPHA_WEIGHT": 2.5
+    "REGIME_ALPHA_WEIGHT": 2.5,
+    "QUALIFIER_STALE_PENALTY": -3.0
   },
+
+  "QUALIFIER_STALENESS_DAYS": 7,
 
   "TIMEFRAME_FREQUENCY_BONUS": {
     "5m": 1.0,
@@ -362,8 +366,8 @@
   },
 
   "TAIL_RISK": {
-    "_comment": "Portfolio CVaR (Expected Shortfall) engine. Computes daily tail risk and derives a continuous risk multiplier m ∈ [multiplier_min, multiplier_max]. shadow_mode=true means m is computed and logged but not applied to stake sizing. Circuit breaker takes precedence: if active, m=0 regardless. MCP tool writes shadow_mode into portfolio.json so consumers read from one place.",
-    "shadow_mode": true,
+    "_comment": "Portfolio CVaR (Expected Shortfall) engine. Computes daily tail risk and derives a continuous risk multiplier m ∈ [multiplier_min, multiplier_max]. shadow_mode=false means m is applied to stake sizing in monitor-deploy. Circuit breaker takes precedence: if active, m=0 regardless. MCP tool writes shadow_mode into portfolio.json so consumers read from one place.",
+    "shadow_mode": false,
     "alpha": 0.975,
     "lookback_days": 365,
     "estimator": "ew_hist",
@@ -384,5 +388,51 @@
       "confidence_sufficient_pct": 0.50,
       "max_consecutive_failures": 3
     }
+  },
+
+  "KATA_THRESHOLDS": {
+    "_comment": "Tunable constants for the kata optimization loop. Graduation thresholds and stagnation limits are loaded at module startup — gate-kata can optimize them alongside the gate thresholds. strategy_graduation_sharpe is the favorable_sharpe target; gate/portfolio use improvement-over-baseline fractions.",
+    "strategy_graduation_sharpe": 0.5,
+    "strategy_stagnation_same_obstacle": 5,
+    "strategy_max_experiments": 15,
+    "gate_graduation_improvement": 0.10,
+    "gate_stagnation_same_obstacle": 4,
+    "portfolio_graduation_improvement": 0.10,
+    "portfolio_stagnation_same_obstacle": 4,
+    "min_proven_patterns": 3,
+    "knowledge_context_per_archetype": 20
+  },
+
+  "SCORING_NORMALIZATION": {
+    "_comment": "Normalization constants for compute_backtest_score() in lib/scoring.py. sharpe_divisor: Sharpe of sharpe_divisor → score 100 (set to your target Sharpe ceiling). profit_offset/profit_scale: profit fraction is shifted by offset then divided by scale before clamping. dd_threshold: drawdown at this fraction → score 0 (max tolerable drawdown).",
+    "sharpe_divisor": 3.0,
+    "profit_offset": 0.1,
+    "profit_scale": 0.5,
+    "dd_threshold": 0.3
+  },
+
+  "WF_PATTERN_THRESHOLDS": {
+    "_comment": "Walk-forward Sharpe pattern classification (lib/metrics.py classify_walkforward_pattern). single_spike_max: a single window must exceed this to be spike-candidate. single_spike_others: all other windows must be below this for SINGLE_SPIKE. degrading_ratio: first-half mean must be > ratio × second-half mean for DEGRADING. consistent_positive_ratio: fraction of positive windows needed for CONSISTENT. consistent_max_mean_ratio: max/mean must be below this to avoid single-window dominance.",
+    "single_spike_max": 1.0,
+    "single_spike_others": 0.1,
+    "degrading_ratio": 2.0,
+    "consistent_positive_ratio": 0.75,
+    "consistent_max_mean_ratio": 2.0
+  },
+
+  "REGIME_THRESHOLDS": {
+    "_comment": "Deterministic regime classification thresholds (lib/regime.py classify_regimes). These control the percentile boundaries for COMPRESSION, CHAOS, and EFFICIENT_TREND detection. compression_bb_pctile: BB width below this percentile → compression band. compression_atr_pctile: ATR below this percentile alongside narrow BB → COMPRESSION. chaos_atr_pctile: ATR above this percentile → potential CHAOS. ema_slope_threshold: EMA 5-bar slope (price-normalized) below this → no trend (used in both CHAOS and EFFICIENT_TREND classification).",
+    "compression_bb_pctile": 0.20,
+    "compression_atr_pctile": 0.50,
+    "chaos_atr_pctile": 0.75,
+    "ema_slope_threshold": 0.005
+  },
+
+  "UX_RETROSPECTIVE": {
+    "_comment": "Configuration for the daily ux-retrospective skill. lookback_hours: how far back to read WhatsApp messages. min_messages_for_analysis: skip analysis if fewer messages exist in the window. max_improvements_reported: how many top improvements to present.",
+    "lookback_hours": 24,
+    "min_messages_for_analysis": 10,
+    "max_improvements_reported": 3,
+    "categories": ["friction", "missing_context", "manual_workaround", "error_pattern", "silent_gap"]
   }
 }

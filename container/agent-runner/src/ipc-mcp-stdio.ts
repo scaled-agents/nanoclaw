@@ -349,6 +349,75 @@ Use available_groups.json to find the JID for a group. The folder name must be c
   },
 );
 
+// ─── Chat History Query ────────────────────────────────────────────────
+
+const QUERIES_DIR = path.join(IPC_DIR, 'queries');
+
+function generateQueryId(): string {
+  return `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+server.tool(
+  'chat_history',
+  'Retrieve WhatsApp message history for the current group. Returns both bot and human messages from the specified time window, chronologically sorted.',
+  {
+    hours: z.number().optional().describe('Lookback window in hours. Default: 24'),
+    include_bot: z.boolean().optional().describe('Include bot-generated messages. Default: true'),
+    limit: z.number().optional().describe('Maximum messages to return. Default: 500'),
+  },
+  async (args) => {
+    const queryId = generateQueryId();
+    const requestPath = path.join(QUERIES_DIR, `${queryId}.request.json`);
+    const responsePath = path.join(QUERIES_DIR, `${queryId}.response.json`);
+
+    fs.mkdirSync(QUERIES_DIR, { recursive: true });
+
+    const request = {
+      type: 'chat_history',
+      queryId,
+      chatJid,
+      hours: args.hours ?? 24,
+      include_bot: args.include_bot ?? true,
+      limit: args.limit ?? 500,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Write request for host to process
+    const tempPath = `${requestPath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(request, null, 2));
+    fs.renameSync(tempPath, requestPath);
+
+    // Poll for response (timeout 15s)
+    const timeoutMs = 15000;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (fs.existsSync(responsePath)) {
+        try {
+          const response = JSON.parse(fs.readFileSync(responsePath, 'utf-8'));
+          fs.unlinkSync(responsePath);
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(response, null, 2) }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: 'text' as const, text: `Error reading response: ${err instanceof Error ? err.message : String(err)}` }],
+            isError: true,
+          };
+        }
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    // Clean up stale request
+    try { fs.unlinkSync(requestPath); } catch { /* ignore */ }
+
+    return {
+      content: [{ type: 'text' as const, text: 'Timeout waiting for chat history from host. Is the IPC watcher running?' }],
+      isError: true,
+    };
+  },
+);
+
 // ─── Agent Feed ───────────────────────────────────────────────────────
 
 const APHEXDATA_URL = (process.env.APHEXDATA_URL || '').replace(/\/+$/, '');

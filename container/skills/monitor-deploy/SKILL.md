@@ -35,6 +35,13 @@ log the reason, append a tick-log entry, and exit immediately.
    If `last_scored` or file mtime is > 8 hours old → skip.
    Log: "Cell grid stale ({age}h) — no deployments."
 
+4. **Stale gap report**: Read `reports/gap-report.json`.
+   If `generated_at` is missing or age > `config.DEPLOY_VERIFICATION.gap_report_max_age_hours`
+   (default: 8) → suppress untested and competition sources (Sources C and D) for this tick.
+   Kata graduates and roster graduates (Sources A and B) are unaffected — they have
+   independent validation and do not depend on current regime scoring.
+   Log: "Gap report stale ({age}h) — skipping untested gap cells."
+
 ## Dependencies
 
 | Skill | Purpose |
@@ -341,14 +348,38 @@ for cand in ranked:
   verifications_this_tick += 1
 
   archetype = read_archetype(cand.archetype)
-  current_regime = read_regime(cand.pair, cand.timeframe)
+  # REGIME SOURCE: ALWAYS use orderflow MCP for live deployment decisions.
+  # NEVER read current_regime from the cell-grid (that is historical market-timing data).
+  current_regime = orderflow.get_current_regime(cand.pair, cand.timeframe)
 
   Verify ALL of:
     a) trade_count > 0
     b) win_rate > config.DEPLOY_VERIFICATION.min_win_rate   # 0.30
     c) current_regime NOT in archetype.anti_regimes
 
-  if ANY verification fails:
+  if verification c) fails (anti-regime):
+    # Don't cancel — retry when regime shifts. Strategy may still be valid.
+    Mark cand state = "pending_regime" with {regime: current_regime, checked_at: now}
+    Post: "Slot fill deferred: {cand.strategy} on {pair}/{tf} — current regime
+           {current_regime} is anti-regime for {archetype}. Will retry next tick."
+    continue
+
+  # d) BOCPD transition caution — only when shadow_mode is false (promoted)
+  if config.REGIME_MODEL.shadow_mode == false:
+    market_prior = read reports/market-prior.json (gracefully skip if missing)
+    change_prob = market_prior[cand.pair][cand.timeframe].bocpd_change_prob ?? 0
+    if change_prob > config.REGIME_MODEL.change_prob_caution_threshold:   # default 0.30
+      Mark cand state = "pending_regime" with {
+        regime: current_regime,
+        change_prob: change_prob,
+        checked_at: now,
+        reason: "regime_transition_caution"
+      }
+      Post: "Deploy deferred: {cand.strategy} on {pair}/{tf} — regime transition
+             probability {change_prob:.0%} exceeds caution threshold. Will retry next tick."
+      continue
+
+  if verification a) or b) fails:
     Mark cand state = "needs_review" with reason
     Post: "Slot fill skipped: {cand.strategy} — {reason}"
     continue
@@ -369,7 +400,7 @@ for cand in ranked:
   cs = portfolio_rules.CONVICTION_SCALING (or defaults)
   if cs.enabled:
     conviction = cell.conviction (0–100, from market-timing grid)
-    archetype_regime_rel = classify(cell.regime, archetype.preferred_regimes, archetype.anti_regimes)
+    archetype_regime_rel = classify(current_regime, archetype.preferred_regimes, archetype.anti_regimes)
     if archetype_regime_rel == "preferred" AND conviction >= cs.conviction_floor:
       t = (conviction - cs.conviction_floor) / (100 - cs.conviction_floor)
       conviction_factor = 1.0 + t * (cs.max_boost - 1.0)   # lerp 1.0 → max_boost (1.5)
@@ -383,7 +414,15 @@ for cand in ranked:
   # Graduation multiplier (graduated bots earn more capital than trials)
   slot_multiplier = portfolio_rules.CAPITAL_ALLOCATION.trial_stake_multiplier   # 1.0
 
-  effective_stake_pct = clamp(volume_stake * conviction_factor * slot_multiplier,
+  # CVaR tail-risk multiplier (TAIL_RISK.shadow_mode=false → active)
+  # Read portfolio.json risk_scaling.multiplier; guard clause already blocks m < 0.60
+  tail_risk_multiplier = portfolio.risk_scaling.multiplier ?? 1.0
+  if config.TAIL_RISK.shadow_mode == false:
+    tail_risk_multiplier = clamp(tail_risk_multiplier, config.TAIL_RISK.multiplier_min, 1.0)
+  else:
+    tail_risk_multiplier = 1.0   # shadow mode: compute but don't apply
+
+  effective_stake_pct = clamp(volume_stake * conviction_factor * slot_multiplier * tail_risk_multiplier,
                               floor, base * config.VOLUME_WEIGHTED_STAKE.ceiling_multiplier * cs.max_boost)
 
   # Create campaign with slot lifecycle stamps
@@ -402,7 +441,7 @@ for cand in ranked:
       bot_deployment_id: bot.id,
       validation_deadline: now + paper_validation[tf].days,
       effective_stake_pct, volume_weight: vw, base_stake_pct: base,
-      regime_at_deploy: cell.regime,
+      regime_at_deploy: current_regime,
       ...standard warm-up fields...
     }
   }

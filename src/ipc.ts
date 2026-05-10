@@ -5,7 +5,7 @@ import { CronExpressionParser } from 'cron-parser';
 
 import { DATA_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
 import { AvailableGroup } from './container-runner.js';
-import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
+import { createTask, deleteTask, getAllMessagesSince, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
@@ -146,6 +146,40 @@ export function startIpcWatcher(deps: IpcDeps): void {
         }
       } catch (err) {
         logger.error({ err, sourceGroup }, 'Error reading IPC tasks directory');
+      }
+
+      // Process queries (request/response pattern: container writes .request.json,
+      // host writes .response.json for container to pick up)
+      const queriesDir = path.join(ipcBaseDir, sourceGroup, 'queries');
+      try {
+        if (fs.existsSync(queriesDir)) {
+          const requestFiles = fs
+            .readdirSync(queriesDir)
+            .filter((f) => f.endsWith('.request.json'));
+          for (const file of requestFiles) {
+            const filePath = path.join(queriesDir, file);
+            try {
+              const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+              fs.unlinkSync(filePath);
+              const responseFile = file.replace('.request.json', '.response.json');
+              const responsePath = path.join(queriesDir, responseFile);
+              const response = processQuery(data, sourceGroup, registeredGroups);
+              fs.writeFileSync(responsePath, JSON.stringify(response, null, 2));
+              logger.debug(
+                { queryId: data.queryId, type: data.type, sourceGroup },
+                'IPC query processed',
+              );
+            } catch (err) {
+              logger.error(
+                { file, sourceGroup, err },
+                'Error processing IPC query',
+              );
+              try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+            }
+          }
+        }
+      } catch (err) {
+        logger.error({ err, sourceGroup }, 'Error reading IPC queries directory');
       }
     }
 
@@ -485,5 +519,57 @@ export async function processTaskIpc(
       }
       break;
     }
+  }
+}
+
+/**
+ * Process a query request from a container. Queries are synchronous read
+ * operations that return data — no state mutation.
+ */
+function processQuery(
+  data: { type: string; chatJid?: string; hours?: number; include_bot?: boolean; limit?: number },
+  sourceGroup: string,
+  registeredGroups: Record<string, RegisteredGroup>,
+): unknown {
+  switch (data.type) {
+    case 'chat_history': {
+      if (!data.chatJid) {
+        return { error: 'Missing chatJid' };
+      }
+
+      // Authorization: only allow querying own group's chat
+      const targetGroup = registeredGroups[data.chatJid];
+      if (!targetGroup || targetGroup.folder !== sourceGroup) {
+        return { error: 'Unauthorized: can only query own group chat history' };
+      }
+
+      const hours = data.hours ?? 24;
+      const limit = data.limit ?? 500;
+      const sinceTimestamp = new Date(
+        Date.now() - hours * 60 * 60 * 1000,
+      ).toISOString();
+
+      let messages = getAllMessagesSince(data.chatJid, sinceTimestamp, limit);
+
+      // Optionally filter out bot messages
+      if (data.include_bot === false) {
+        messages = messages.filter((m) => !(m as { is_bot_message?: number }).is_bot_message);
+      }
+
+      return {
+        messages: messages.map((m) => ({
+          sender_name: m.sender_name,
+          content: m.content,
+          timestamp: m.timestamp,
+          is_bot_message: !!(m as { is_bot_message?: number }).is_bot_message,
+        })),
+        count: messages.length,
+        hours,
+        since: sinceTimestamp,
+      };
+    }
+
+    default:
+      return { error: `Unknown query type: ${data.type}` };
   }
 }

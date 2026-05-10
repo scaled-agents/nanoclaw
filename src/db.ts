@@ -452,6 +452,28 @@ export function getRecentBotMessages(
   return db.prepare(sql).all(chatJid, limit) as NewMessage[];
 }
 
+/**
+ * Get ALL messages (both bot and human) from a chat since a given timestamp.
+ * Used by ux-retrospective skill to analyze conversation patterns.
+ */
+export function getAllMessagesSince(
+  chatJid: string,
+  sinceTimestamp: string,
+  limit: number = 500,
+): NewMessage[] {
+  const sql = `
+    SELECT * FROM (
+      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message
+      FROM messages
+      WHERE chat_jid = ? AND timestamp > ?
+        AND content != '' AND content IS NOT NULL
+      ORDER BY timestamp DESC
+      LIMIT ?
+    ) ORDER BY timestamp
+  `;
+  return db.prepare(sql).all(chatJid, sinceTimestamp, limit) as NewMessage[];
+}
+
 export function createTask(
   task: Omit<ScheduledTask, 'last_run' | 'last_result'>,
 ): void {
