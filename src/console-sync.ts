@@ -34,6 +34,7 @@ const CANONICAL_ARCHETYPES = new Set([
   'SCALPING',
   'VOLATILITY_HARVEST',
   'CARRY_FUNDING',
+  'MULTI_FACTOR',
 ]);
 const ARCHETYPE_ALIASES: Record<string, string> = {
   CARRY: 'CARRY_FUNDING',
@@ -46,6 +47,7 @@ const ARCHETYPE_ALIASES: Record<string, string> = {
   VOLATILITY: 'VOLATILITY_HARVEST',
   MEAN_REV: 'MEAN_REVERSION',
   FUNDING: 'CARRY_FUNDING',
+  SCALP: 'SCALPING',
 };
 
 function normalizeArchetype(raw: string): string | null {
