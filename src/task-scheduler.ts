@@ -208,6 +208,7 @@ async function runTask(
 
   let result: string | null = null;
   let error: string | null = null;
+  let lastUsage: ContainerOutput['usage'] | undefined;
 
   // After the task produces a result, close the container promptly.
   // Tasks are single-turn — no need to wait IDLE_TIMEOUT (30 min) for the
@@ -256,6 +257,9 @@ async function runTask(
           true,
         ),
       async (streamedOutput: ContainerOutput) => {
+        if (streamedOutput.usage) {
+          lastUsage = streamedOutput.usage;
+        }
         if (streamedOutput.result) {
           result = streamedOutput.result;
           // Don't auto-forward: scheduled tasks use send_message MCP tool explicitly.
@@ -300,6 +304,11 @@ async function runTask(
     status: error ? 'error' : 'success',
     result,
     error,
+    input_tokens: lastUsage?.inputTokens ?? null,
+    output_tokens: lastUsage?.outputTokens ?? null,
+    cache_read_tokens: lastUsage?.cacheReadTokens ?? null,
+    cache_creation_tokens: lastUsage?.cacheCreationTokens ?? null,
+    cost_usd: lastUsage?.costUSD ?? null,
   });
 
   const nextRun = computeNextRun(task);

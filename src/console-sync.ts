@@ -454,7 +454,20 @@ function loadGroupsFromDb(db: Database): any[] {
 
 function loadTasksFromDb(db: Database): any[] {
   try {
-    const stmt = db.prepare('SELECT * FROM scheduled_tasks');
+    const stmt = db.prepare(`
+      SELECT t.*,
+        COALESCE(SUM(r.input_tokens), 0) AS total_input_tokens,
+        COALESCE(SUM(r.output_tokens), 0) AS total_output_tokens,
+        COALESCE(SUM(r.cache_read_tokens), 0) AS total_cache_read_tokens,
+        COALESCE(SUM(r.cache_creation_tokens), 0) AS total_cache_creation_tokens,
+        COALESCE(SUM(r.cost_usd), 0) AS total_cost_usd,
+        COUNT(r.id) AS run_count_7d
+      FROM scheduled_tasks t
+      LEFT JOIN task_run_logs r
+        ON r.task_id = t.id
+        AND r.run_at >= datetime('now', '-7 days')
+      GROUP BY t.id
+    `);
     return stmt.all();
   } catch {
     return [];

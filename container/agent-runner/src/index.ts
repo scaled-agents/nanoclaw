@@ -32,11 +32,20 @@ interface ContainerInput {
   capabilities?: CapabilityProfile;
 }
 
+interface UsageSummary {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  costUSD: number;
+}
+
 interface ContainerOutput {
   status: 'success' | 'error';
   result: string | null;
   newSessionId?: string;
   error?: string;
+  usage?: UsageSummary;
 }
 
 interface SessionEntry {
@@ -520,7 +529,7 @@ async function runQuery(
   containerInput: ContainerInput,
   sdkEnv: Record<string, string | undefined>,
   resumeAt?: string,
-): Promise<{ newSessionId?: string; lastAssistantUuid?: string; closedDuringQuery: boolean; sessionCorruption?: boolean }> {
+): Promise<{ newSessionId?: string; lastAssistantUuid?: string; closedDuringQuery: boolean; sessionCorruption?: boolean; totalUsage: UsageSummary }> {
   const stream = new MessageStream();
   stream.push(prompt);
 
@@ -549,6 +558,7 @@ async function runQuery(
   let lastAssistantUuid: string | undefined;
   let messageCount = 0;
   let resultCount = 0;
+  const totalUsage: UsageSummary = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, costUSD: 0 };
 
   // Load global CLAUDE.md as additional system context (shared across all groups)
   const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
@@ -669,12 +679,17 @@ async function runQuery(
       const textResult = 'result' in message ? (message as { result?: string }).result : null;
       log(`Result #${resultCount}: subtype=${message.subtype}${textResult ? ` text=${textResult.slice(0, 200)}` : ''}`);
 
-      // Log cache metrics so we can verify prompt caching is working
-      type MU = { inputTokens: number; cacheReadInputTokens: number; cacheCreationInputTokens: number };
+      // Accumulate token usage across all result messages
+      type MU = { inputTokens: number; outputTokens: number; cacheReadInputTokens: number; cacheCreationInputTokens: number; costUSD: number };
       const modelUsage = (message as { modelUsage?: Record<string, MU> }).modelUsage;
       if (modelUsage) {
         for (const [model, u] of Object.entries(modelUsage)) {
-          log(`[cache] model=${model} input=${u.inputTokens} creation=${u.cacheCreationInputTokens} read=${u.cacheReadInputTokens}`);
+          log(`[cache] model=${model} input=${u.inputTokens} output=${u.outputTokens} creation=${u.cacheCreationInputTokens} read=${u.cacheReadInputTokens} cost=$${u.costUSD?.toFixed(4) ?? '?'}`);
+          totalUsage.inputTokens += u.inputTokens || 0;
+          totalUsage.outputTokens += u.outputTokens || 0;
+          totalUsage.cacheReadTokens += u.cacheReadInputTokens || 0;
+          totalUsage.cacheCreationTokens += u.cacheCreationInputTokens || 0;
+          totalUsage.costUSD += u.costUSD || 0;
         }
       }
 
@@ -689,13 +704,14 @@ async function runQuery(
         if (heartbeat) clearInterval(heartbeat);
         heartbeat = null;
         ipcPolling = false;
-        return { newSessionId, lastAssistantUuid, closedDuringQuery, sessionCorruption: true };
+        return { newSessionId, lastAssistantUuid, closedDuringQuery, sessionCorruption: true, totalUsage };
       }
 
       writeOutput({
         status: 'success',
         result: textResult || null,
-        newSessionId
+        newSessionId,
+        usage: { ...totalUsage },
       });
     }
   }
@@ -704,7 +720,7 @@ async function runQuery(
   heartbeat = null;
   ipcPolling = false;
   log(`Query done. Messages: ${messageCount}, results: ${resultCount}, lastAssistantUuid: ${lastAssistantUuid || 'none'}, closedDuringQuery: ${closedDuringQuery}`);
-  return { newSessionId, lastAssistantUuid, closedDuringQuery };
+  return { newSessionId, lastAssistantUuid, closedDuringQuery, totalUsage };
 }
 
 async function main(): Promise<void> {
