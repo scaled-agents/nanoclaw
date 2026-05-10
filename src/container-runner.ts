@@ -523,7 +523,10 @@ function buildContainerArgs(
     args.push('-e', `ANTHROPIC_API_KEY=${secrets.ANTHROPIC_API_KEY}`);
   } else {
     const secrets = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN']);
-    args.push('-e', `CLAUDE_CODE_OAUTH_TOKEN=${secrets.CLAUDE_CODE_OAUTH_TOKEN}`);
+    args.push(
+      '-e',
+      `CLAUDE_CODE_OAUTH_TOKEN=${secrets.CLAUDE_CODE_OAUTH_TOKEN}`,
+    );
   }
 
   // Runtime-specific args for host gateway resolution
