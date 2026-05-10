@@ -514,15 +514,16 @@ function buildContainerArgs(
     `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`,
   );
 
-  // Mirror the host's auth method with a placeholder value.
-  // API key mode: SDK sends x-api-key, proxy replaces with real key.
-  // OAuth mode:   SDK exchanges placeholder token for temp API key,
-  //               proxy injects real OAuth token on that exchange request.
+  // Pass the real API key so requests work even if they bypass the proxy
+  // (e.g., Task subagent subprocesses during Docker networking flaps).
+  // The proxy still provides cache_control injection on proxied requests.
   const authMode = detectAuthMode();
   if (authMode === 'api-key') {
-    args.push('-e', 'ANTHROPIC_API_KEY=placeholder');
+    const secrets = readEnvFile(['ANTHROPIC_API_KEY']);
+    args.push('-e', `ANTHROPIC_API_KEY=${secrets.ANTHROPIC_API_KEY}`);
   } else {
-    args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
+    const secrets = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN']);
+    args.push('-e', `CLAUDE_CODE_OAUTH_TOKEN=${secrets.CLAUDE_CODE_OAUTH_TOKEN}`);
   }
 
   // Runtime-specific args for host gateway resolution
