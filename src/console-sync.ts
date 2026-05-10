@@ -341,6 +341,19 @@ function loadRegimeIntel(): any | null {
   return null;
 }
 
+// Normalize KPI status strings from the collector (UNKNOWN, HEALTHY, RED, etc.)
+// to the canonical set the frontend expects.
+function normalizeKpiStatus(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const lower = s.toLowerCase();
+  if (['excellent', 'good', 'healthy', 'green', 'ok'].includes(lower)) return 'excellent';
+  if (['acceptable', 'warn', 'warning'].includes(lower)) return 'acceptable';
+  if (['concerning', 'degraded', 'poor'].includes(lower)) return 'concerning';
+  if (['critical', 'red'].includes(lower)) return 'critical';
+  if (['unknown'].includes(lower)) return 'unknown';
+  return 'unknown';
+}
+
 function loadObservability(): any | null {
   try {
     if (!fs.existsSync(GROUPS_DIR)) return null;
@@ -386,10 +399,30 @@ function loadObservability(): any | null {
             .filter((e: any) => e && new Date(e.ts).getTime() > cutoff);
         }
 
+        const kpis = latest.kpis ?? latest;
+
+        // Normalize status strings to the canonical set
+        kpis.rcce_status = normalizeKpiStatus(kpis.rcce_status);
+        kpis.bdl_status = normalizeKpiStatus(kpis.bdl_status);
+        kpis.mttd_status = normalizeKpiStatus(kpis.mttd_status);
+        kpis.lveq_status = normalizeKpiStatus(kpis.lveq_status);
+
+        // Clamp RCCE to [0, 1] — some historical entries stored percentage (0-100)
+        if (kpis.rcce != null && kpis.rcce > 1) {
+          kpis.rcce = kpis.rcce / 100;
+        }
+
+        // Extract active_deployments from diagnostics if not in kpis
+        const diag = latest.diagnostics ?? {};
+        if (kpis.active_deployments == null) {
+          kpis.active_deployments =
+            diag.pipeline_throughput?.active_deployments ?? diag.slot_count ?? 0;
+        }
+
         return {
-          ts: latest.ts,
-          kpis: latest.kpis ?? latest,
-          diagnostics: latest.diagnostics ?? {},
+          ts: latest.timestamp ?? latest.ts,
+          kpis,
+          diagnostics: diag,
           bleeding: {
             events: bleedingEvents,
             active_deployments_checked:
