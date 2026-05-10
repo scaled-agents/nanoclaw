@@ -346,7 +346,8 @@ function loadRegimeIntel(): any | null {
 function normalizeKpiStatus(s: string | null | undefined): string | null {
   if (!s) return null;
   const lower = s.toLowerCase();
-  if (['excellent', 'good', 'healthy', 'green', 'ok'].includes(lower)) return 'excellent';
+  if (['excellent', 'good', 'healthy', 'green', 'ok'].includes(lower))
+    return 'excellent';
   if (['acceptable', 'warn', 'warning'].includes(lower)) return 'acceptable';
   if (['concerning', 'degraded', 'poor'].includes(lower)) return 'concerning';
   if (['critical', 'red'].includes(lower)) return 'critical';
@@ -416,7 +417,9 @@ function loadObservability(): any | null {
         const diag = latest.diagnostics ?? {};
         if (kpis.active_deployments == null) {
           kpis.active_deployments =
-            diag.pipeline_throughput?.active_deployments ?? diag.slot_count ?? 0;
+            diag.pipeline_throughput?.active_deployments ??
+            diag.slot_count ??
+            0;
         }
 
         return {
