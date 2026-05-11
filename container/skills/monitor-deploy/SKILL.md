@@ -491,8 +491,8 @@ for cand in ranked:
   trial_room      -= 1
   deployed_this_tick += 1
 
-  Post: "DEPLOYED TRIAL: {strategy} on {pair}/{tf}
-    — source={source}, gap_score={gap}, deadline={trial_deadline},
+  Post: "PAPER TRADING LIVE — {strategy} | {pair} {tf} | signals ON
+    Trial slot, source={source}, gap_score={gap}, deadline={trial_deadline},
     stake_pct={stake} (vw={vw})"
   aphexdata_record_event(verb_id="slot_trial_deployed",
     verb_category="execution",

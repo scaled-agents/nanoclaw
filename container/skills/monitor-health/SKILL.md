@@ -309,12 +309,38 @@ for campaign in campaigns where state in {"paper_trading", "graduated"}:
     campaign.consecutive_container_down = 0       # reset on healthy check
   else:
     campaign.consecutive_container_down = (campaign.consecutive_container_down or 0) + 1
-    Log: "Container down for {strategy} — check {campaign.consecutive_container_down}"
-    if campaign.consecutive_container_down == 1:
-      # First detection — attempt restart (might be transient)
-      bot_start(campaign.paper_trading.bot_deployment_id,
-                campaign.strategy, campaign.pair, campaign.timeframe)
-      Log: "Restart attempted for {strategy}"
+
+    # Fatal-pattern log scan: check container logs for known terminal errors
+    # BEFORE composing any alert. Lead with the specific cause, not the symptom.
+    fatal_cause = null
+    logs = bot_logs(campaign.paper_trading.bot_deployment_id, tail=100) or ""
+    FATAL_PATTERNS = [
+      {pattern: "StrategyException",       cause: "Strategy class not found or failed to load"},
+      {pattern: "ModuleNotFoundError",     cause: "Missing Python module"},
+      {pattern: "does not exist",          cause: "Strategy class does not exist"},
+      {pattern: "ImportError",             cause: "Import failed in strategy file"},
+      {pattern: "SyntaxError",             cause: "Syntax error in strategy file"},
+      {pattern: "OperationalException",    cause: "FreqTrade operational error"},
+      {pattern: "ExchangeError",           cause: "Exchange connection/auth error"},
+    ]
+    for fp in FATAL_PATTERNS:
+      match = first line in logs containing fp.pattern
+      if match:
+        fatal_cause = fp.cause
+        fatal_detail = match.strip()[:200]
+        break
+
+    if fatal_cause:
+      Log: "FATAL: {strategy} — {fatal_cause}: {fatal_detail}"
+      # Suppress restart — fatal errors won't self-heal
+      campaign.fatal_error = {cause: fatal_cause, detail: fatal_detail, detected_at: now}
+    else:
+      Log: "Container down for {strategy} — check {campaign.consecutive_container_down}"
+      if campaign.consecutive_container_down == 1:
+        # First detection — attempt restart (might be transient)
+        bot_start(campaign.paper_trading.bot_deployment_id,
+                  campaign.strategy, campaign.pair, campaign.timeframe)
+        Log: "Restart attempted for {strategy}"
     # Trigger B in Step 4 handles retirement at consecutive_container_down
     # >= cfg.dead_container_consecutive_checks (default 2)
 ```
@@ -808,8 +834,13 @@ dep.retired_reason = reason
 write auto-mode/deployments.json
 
 aphexdata_record_event(verb_id="kata_retired_early", ...)
-Post to feed: "Early retirement: {strategy} on {pair}/{tf} — {reason}"
-Message user: "{strategy} retired early — {reason}"
+# If fatal_error was captured in Step 1, lead with root cause
+if campaign.fatal_error:
+  Post to feed: "FATAL: {strategy} on {pair}/{tf} — {campaign.fatal_error.cause}: {campaign.fatal_error.detail}"
+  Message user: "{strategy} retired — {campaign.fatal_error.cause}\n  Detail: {campaign.fatal_error.detail}\n  Reason: {reason}"
+else:
+  Post to feed: "Early retirement: {strategy} on {pair}/{tf} — {reason}"
+  Message user: "{strategy} retired early — {reason}"
 
 # Append live outcome (non-blocking — log warning on failure, create knowledge dir if missing)
 append_jsonl("knowledge/live-outcomes.jsonl", {

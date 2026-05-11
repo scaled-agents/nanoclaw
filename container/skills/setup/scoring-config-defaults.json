@@ -35,7 +35,7 @@
     "trial_deadlines_days": {
       "5m": 2,
       "15m": 3,
-      "1h": 7,
+      "1h": 4,
       "4h": 14
     },
     "trial_early_eviction": {
